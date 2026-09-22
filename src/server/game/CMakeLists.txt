@@ -57,6 +57,7 @@ file(GLOB_RECURSE sources_Texts Texts/*.cpp Texts/*.h)
 file(GLOB_RECURSE sources_Time Time/*.cpp Time/*.h)
 file(GLOB_RECURSE sources_Tools Tools/*.cpp Tools/*.h)
 file(GLOB_RECURSE sources_Tickets Tickets/*.cpp Tickets/*.h)
+file(GLOB_RECURSE sources_Tillers Tillers/*.cpp Tillers/*.h)
 file(GLOB_RECURSE sources_Vignette Vignette/*.cpp Vignette/*.h)
 file(GLOB_RECURSE sources_Warden Warden/*.cpp Warden/*.h)
 file(GLOB_RECURSE sources_Weather Weather/*.cpp Weather/*.h)
@@ -112,6 +113,7 @@ source_group(Texts FILES ${sources_Texts})
 source_group(Time FILES ${sources_Time})
 source_group(Tools FILES ${sources_Tools})
 source_group(Tickets FILES ${sources_Tickets})
+source_group(Tillers FILES ${sources_Tillers})
 source_group(Warden FILES ${sources_Warden})
 source_group(Weather FILES ${sources_Weather})
 source_group(World FILES ${sources_World})
@@ -171,6 +173,7 @@ set(game_STAT_SRCS
   ${sources_Time}
   ${sources_Tools}
   ${sources_Tickets}
+  ${sources_Tillers}
   ${sources_Vignette}
   ${sources_Warden}
   ${sources_Weather}
@@ -275,6 +278,7 @@ target_include_directories(game
     ${CMAKE_CURRENT_SOURCE_DIR}/Time
     ${CMAKE_CURRENT_SOURCE_DIR}/Tools
     ${CMAKE_CURRENT_SOURCE_DIR}/Tickets
+    ${CMAKE_CURRENT_SOURCE_DIR}/Tillers
     ${CMAKE_CURRENT_SOURCE_DIR}/Vignette
     ${CMAKE_CURRENT_SOURCE_DIR}/Warden
     ${CMAKE_CURRENT_SOURCE_DIR}/Warden/Modules
