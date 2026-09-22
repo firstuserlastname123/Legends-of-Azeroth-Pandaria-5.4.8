@@ -731,6 +731,12 @@ void CharacterDatabaseConnection::DoPrepareStatements()
     PrepareStatement(CHAR_DEL_BATTLEGROUND_STATS, "DELETE FROM character_battleground_stats WHERE guid = ?", CONNECTION_ASYNC);
 
     PrepareStatement(CHAR_UPD_CHAR_LAST_LOGIN, "UPDATE characters SET last_login = UNIX_TIMESTAMP() WHERE guid = ?", CONNECTION_ASYNC);
+
+    PrepareStatement(CHAR_SEL_PLAYER_FARM_STATE, "SELECT farm_phase, plots_unlocked, best_friend_unlocks FROM player_farm_state WHERE guid = ?", CONNECTION_SYNCH);
+    PrepareStatement(CHAR_SEL_PLAYER_FARM_PLOTS, "SELECT plot_id, state, seed_entry, needs_watering, has_pests, maturity_timestamp FROM player_farm_plots WHERE guid = ? ORDER BY plot_id", CONNECTION_SYNCH);
+    PrepareStatement(CHAR_REP_PLAYER_FARM_STATE, "REPLACE INTO player_farm_state (guid, farm_phase, plots_unlocked, best_friend_unlocks) VALUES (?, ?, ?, ?)", CONNECTION_ASYNC);
+    PrepareStatement(CHAR_DEL_PLAYER_FARM_PLOTS, "DELETE FROM player_farm_plots WHERE guid = ?", CONNECTION_ASYNC);
+    PrepareStatement(CHAR_INS_PLAYER_FARM_PLOT, "INSERT INTO player_farm_plots (guid, plot_id, state, seed_entry, needs_watering, has_pests, maturity_timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)", CONNECTION_ASYNC);
 }
 
 CharacterDatabaseConnection::CharacterDatabaseConnection(MySQLConnectionInfo& connInfo, ConnectionFlags connectionFlags) : MySQLConnection(connInfo, connectionFlags)
