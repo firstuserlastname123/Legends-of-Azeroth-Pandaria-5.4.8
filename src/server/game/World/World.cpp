@@ -92,6 +92,7 @@
 #include "BattlePayMgr.h"
 #include "BattlePetMgr.h"
 #include "BattlePetSpawnMgr.h"
+#include "BattlePetTrainerMgr.h"
 #include "PetBattle.h"
 #include "DevTool.h"
 #include "AnticheatMgr.h"
@@ -2326,6 +2327,9 @@ void World::SetInitialWorldSettings()
 
     TC_LOG_INFO("server.loading", "Loading Battle Pet spawn pool data...");
     sBattlePetSpawnMgr->Initialise();
+
+    TC_LOG_INFO("server.loading", "Loading Battle Pet trainer data...");
+    sBattlePetTrainerMgr->LoadBattleTrainerPets();
 
     TC_LOG_INFO("server.loading", "Loading Battle Pay store data...");
     sBattlePayMgr->LoadFromDb();

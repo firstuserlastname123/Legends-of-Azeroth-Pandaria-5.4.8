@@ -429,11 +429,16 @@ void PetBattle::StartBattle()
 
 void PetBattle::EndBattle(PetBattleTeam* lostTeam, bool forfeit)
 {
+    if (m_state == PetBattleState::Finished)
+        return;
+
     if (std::this_thread::get_id() != sWorld->GetThreadId())
     {
         m_state = PetBattleState::Interrupted;
         return;
     }
+
+    m_state = PetBattleState::Finished;
 
     // if no winning team is specified, battle was forcefully ended
     m_winningTeam = nullptr;
@@ -551,8 +556,6 @@ void PetBattle::EndBattle(PetBattleTeam* lostTeam, bool forfeit)
         if (auto creature = team->GetWildBattlePet())
             sBattlePetSpawnMgr->LeftBattle(creature, team == lostTeam);
     }
-
-    m_state = PetBattleState::Finished;
 }
 
 void PetBattle::HandleRound()
