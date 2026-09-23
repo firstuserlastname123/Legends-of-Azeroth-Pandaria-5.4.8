@@ -736,6 +736,7 @@ void CharacterDatabaseConnection::DoPrepareStatements()
     PrepareStatement(CHAR_SEL_PLAYER_FARM_PLOTS, "SELECT plot_id, state, seed_entry, needs_watering, has_pests, maturity_timestamp FROM player_farm_plots WHERE guid = ? ORDER BY plot_id", CONNECTION_SYNCH);
     PrepareStatement(CHAR_REP_PLAYER_FARM_STATE, "REPLACE INTO player_farm_state (guid, farm_phase, plots_unlocked, best_friend_unlocks) VALUES (?, ?, ?, ?)", CONNECTION_ASYNC);
     PrepareStatement(CHAR_DEL_PLAYER_FARM_PLOTS, "DELETE FROM player_farm_plots WHERE guid = ?", CONNECTION_ASYNC);
+    PrepareStatement(CHAR_DEL_PLAYER_FARM_STATE, "DELETE FROM player_farm_state WHERE guid = ?", CONNECTION_ASYNC);
     PrepareStatement(CHAR_INS_PLAYER_FARM_PLOT, "INSERT INTO player_farm_plots (guid, plot_id, state, seed_entry, needs_watering, has_pests, maturity_timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)", CONNECTION_ASYNC);
 }
 
