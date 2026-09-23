@@ -401,11 +401,13 @@ class npc_raigonn_weak_spot : public CreatureScript
 
             void JustDied(Unit* /*killer*/) override
             {
-                instance->SendEncounterUnit(ENCOUNTER_FRAME_DISENGAGE, me);
                 if (instance)
+                {
+                    instance->SendEncounterUnit(ENCOUNTER_FRAME_DISENGAGE, me);
                     if (Creature* raigonn = Unit::GetCreature(*me, instance->GetGuidData(DATA_RAIGONN)))
                         if (raigonn->IsAIEnabled)
                             raigonn->AI()->DoAction(ACTION_WEAK_SPOT_DEAD);
+                }
             }
 
             // Just fucking bunch of hacks
@@ -711,9 +713,13 @@ class BatteringHeadbuttEffectTargetSelector
 
         bool operator()(Player* object)
         {
-            return object
-                && object->GetPositionY() > 2372.0f && object->GetPositionY() < 2360.0f
-                && object->GetPositionX() > 997.0f  && object->GetPositionX() < 919.0f;
+            // Keep only players in the inner-gate impact area. The old comparisons
+            // required each coordinate to be simultaneously above the maximum and
+            // below the minimum, so no player was ever filtered out and the stun
+            // leaked through vertically stacked parts of the instance.
+            return !object
+                || object->GetPositionY() < 2360.0f || object->GetPositionY() > 2372.0f
+                || object->GetPositionX() < 919.0f  || object->GetPositionX() > 997.0f;
         }
 };
 
@@ -731,6 +737,10 @@ class spell_raigonn_battering_headbutt : public SpellScriptLoader
             {
                 if (Unit* caster = GetCaster())
                 {
+                    InstanceScript* instance = caster->GetInstanceScript();
+                    if (!instance || instance->GetBossState(DATA_RAIGONN) != IN_PROGRESS)
+                        return;
+
                     std::list<Player*> PlayersOnGates;
                     GetPlayerListInGrid(PlayersOnGates, caster, 100.0f);
 

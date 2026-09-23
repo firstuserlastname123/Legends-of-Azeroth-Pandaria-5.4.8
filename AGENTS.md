@@ -89,3 +89,20 @@ To enable bots beyond building:
 - Windows: `.github/workflows/windows-build-release.yml` — VS 2022, Boost 1.87, OpenSSL 3.1.1
 - SQL changes are ignored in CI (`paths-ignore: sql/**`)
 - Travis CI (`build/` dir, `cmake .. -DSCRIPTS=1 -DTOOLS=1`) is legacy
+
+## MoP Preservation Project Rules
+
+1. `master` is treated as the upstream mirror.
+2. `preservation/main` is the long-lived integration branch for preservation development.
+3. Individual fixes and features should be developed as isolated Codex/task branches and merged through pull requests.
+4. Preserve compatibility with WoW Mists of Pandaria 5.4.8 client build 18414 unless a task explicitly states otherwise.
+5. Prefer small, evidence-backed changes over broad rewrites.
+6. Do not modify unrelated code while fixing a specific problem.
+7. Never invent expected retail 5.4.8 behavior when evidence is unavailable. Record uncertainty instead.
+8. Gameplay, quest, spell, packet, protocol, database, scripting, networking, Playerbots, and Eluna behavior must not be changed unless explicitly in the task scope.
+9. Do not commit build directories, compiler output, extracted WoW client data, maps, vmaps, mmaps, DBC files, database dumps, passwords, credentials, or secrets.
+10. Successful compilation proves only that code compiled. It does not prove correct gameplay behavior.
+11. For C++ changes, perform the most relevant feasible build/test validation before declaring the task complete.
+12. Do not silently fix additional problems discovered during a task. Document them for separate tasks.
+13. If a task encounters a major unexpected blocker after useful changes have been made, preserve valid work in a checkpoint commit before stopping when possible.
+14. Avoid long uncontrolled retry loops. A failing command should be diagnosed, not repeatedly retried with speculative changes.
