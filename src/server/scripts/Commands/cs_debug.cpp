@@ -31,10 +31,90 @@ EndScriptData */
 #include "GridNotifiers.h"
 #include "GridNotifiersImpl.h"
 #include "GossipDef.h"
+#include "GameObject.h"
+#include "MapManager.h"
+#include "ObjectAccessor.h"
+#include "Player.h"
+#include "TemporarySummon.h"
 #include "Transport.h"
 #include "Language.h"
 
+#include <cstdlib>
 #include <fstream>
+#include <limits>
+#include <vector>
+
+// TEMPORARY DISPOSABLE RUNTIME VALIDATION ONLY
+// DO NOT MERGE INTO preservation/main
+namespace
+{
+char const* T3ATestPrefix = "T3A TEST FIXTURE - NOT PRODUCTION:";
+
+enum class T3ATestObjectType
+{
+    Creature,
+    GameObject
+};
+
+struct T3ATestObject
+{
+    ObjectGuid Guid;
+    ObjectGuid OwnerGuid;
+    T3ATestObjectType Type;
+    uint32 Entry;
+    uint32 MapId;
+    uint32 InstanceId;
+    uint32 PhaseMask;
+    bool OwnerAfterInsertion;
+};
+
+std::vector<T3ATestObject> T3ATestObjects;
+
+bool ParseT3ATestUInt32(char const* text, uint32& value, bool allowZero = false)
+{
+    if (!text || !*text || *text == '-')
+        return false;
+
+    char* end = nullptr;
+    unsigned long long parsed = std::strtoull(text, &end, 10);
+    if (*end || parsed > std::numeric_limits<uint32>::max() || (!allowZero && !parsed))
+        return false;
+
+    value = uint32(parsed);
+    return true;
+}
+
+Player* ResolveT3ATestOwner(ChatHandler* handler, char const* ownerName)
+{
+    std::string name(ownerName ? ownerName : "");
+    if (!normalizePlayerName(name))
+    {
+        handler->PSendSysMessage("%s invalid player name.", T3ATestPrefix);
+        return nullptr;
+    }
+
+    Player* owner = ObjectAccessor::FindPlayerByName(name);
+    if (!owner || !owner->IsInWorld() || owner->GetGUID().IsEmpty())
+    {
+        handler->PSendSysMessage("%s owner '%s' must be online, in world, and have a valid GUID.", T3ATestPrefix, name.c_str());
+        return nullptr;
+    }
+
+    return owner;
+}
+
+WorldObject* FindT3ATestObject(T3ATestObject const& testObject)
+{
+    Map* map = sMapMgr->FindMap(testObject.MapId, testObject.InstanceId);
+    if (!map)
+        return nullptr;
+
+    if (testObject.Type == T3ATestObjectType::Creature)
+        return map->GetCreature(testObject.Guid);
+
+    return map->GetGameObject(testObject.Guid);
+}
+}
 
 class debug_commandscript : public CommandScript
 {
@@ -43,6 +123,17 @@ public:
 
     std::vector<ChatCommand> GetCommands() const override
     {
+        static std::vector<ChatCommand> t3aTestCommandTable =
+        {
+            { "help", &HandleT3ATestHelpCommand, rbac::RBAC_PERM_COMMAND_DEBUG, Trinity::ChatCommands::Console::No },
+            { "creature", &HandleT3ATestCreatureCommand, rbac::RBAC_PERM_COMMAND_DEBUG, Trinity::ChatCommands::Console::No },
+            { "creatureafter", &HandleT3ATestCreatureAfterCommand, rbac::RBAC_PERM_COMMAND_DEBUG, Trinity::ChatCommands::Console::No },
+            { "go", &HandleT3ATestGameObjectCommand, rbac::RBAC_PERM_COMMAND_DEBUG, Trinity::ChatCommands::Console::No },
+            { "goafter", &HandleT3ATestGameObjectAfterCommand, rbac::RBAC_PERM_COMMAND_DEBUG, Trinity::ChatCommands::Console::No },
+            { "list", &HandleT3ATestListCommand, rbac::RBAC_PERM_COMMAND_DEBUG, Trinity::ChatCommands::Console::No },
+            { "cleanup", &HandleT3ATestCleanupCommand, rbac::RBAC_PERM_COMMAND_DEBUG, Trinity::ChatCommands::Console::No },
+            { "refresh", &HandleT3ATestRefreshCommand, rbac::RBAC_PERM_COMMAND_DEBUG, Trinity::ChatCommands::Console::No },
+        };
         static std::vector<ChatCommand> debugPlayCommandTable =
         {
             { "cinematic", &HandleDebugPlayCinematicCommand, rbac::RBAC_PERM_COMMAND_DEBUG_PLAY_CINEMATIC, Trinity::ChatCommands::Console::No },
@@ -110,10 +201,193 @@ public:
         };
         static std::vector<ChatCommand> commandTable =
         {
+            { "t3atest", t3aTestCommandTable, rbac::RBAC_PERM_COMMAND_DEBUG, Trinity::ChatCommands::Console::No },
             { "debug",          debugCommandTable,                       rbac::RBAC_PERM_COMMAND_DEBUG,       Trinity::ChatCommands::Console::Yes },
             { "wpgps", &HandleWPGPSCommand, rbac::RBAC_PERM_COMMAND_WPGPS, Trinity::ChatCommands::Console::No },
         };
         return commandTable;
+    }
+
+    static bool HandleT3ATestHelpCommand(ChatHandler* handler, char const*)
+    {
+        handler->PSendSysMessage("%s commands:", T3ATestPrefix);
+        handler->SendSysMessage(".t3atest creature <entry> <ownerName> [phaseMask]");
+        handler->SendSysMessage(".t3atest go <entry> <ownerName> [phaseMask]");
+        handler->SendSysMessage(".t3atest creatureafter|goafter <entry> <ownerName> [phaseMask] (UNSAFE comparison)");
+        handler->SendSysMessage(".t3atest list | cleanup | refresh <playerName>");
+        handler->SendSysMessage("Use existing .modify phase <mask> on the selected player; 0 resets its custom phase.");
+        return true;
+    }
+
+    static bool HandleT3ATestSpawnCommand(ChatHandler* handler, char const* args, T3ATestObjectType type, bool ownerAfterInsertion)
+    {
+        Tokenizer tokens(args, ' ');
+        if (tokens.size() < 2 || tokens.size() > 3)
+            return HandleT3ATestHelpCommand(handler, args);
+
+        uint32 entry;
+        uint32 phaseMask = PHASEMASK_NORMAL;
+        if (!ParseT3ATestUInt32(tokens[0], entry) || (tokens.size() == 3 && !ParseT3ATestUInt32(tokens[2], phaseMask)))
+        {
+            handler->PSendSysMessage("%s entry and phase must be nonzero uint32 values.", T3ATestPrefix);
+            return false;
+        }
+
+        Player* owner = ResolveT3ATestOwner(handler, tokens[1]);
+        if (!owner)
+            return false;
+
+        Map* map = owner->GetMap();
+        Position position = owner->GetNearPosition(2.0f, 0.0f);
+        WorldObject* object = nullptr;
+
+        if (type == T3ATestObjectType::Creature)
+        {
+            if (!sObjectMgr->GetCreatureTemplate(entry))
+            {
+                handler->PSendSysMessage("%s creature_template %u does not exist.", T3ATestPrefix, entry);
+                return false;
+            }
+
+            TempSummon* summon = new TempSummon(nullptr, nullptr, false);
+            if (!summon->Create(map->GenerateLowGuid<HighGuid::Unit>(), map, phaseMask, entry, 0, 0,
+                position.GetPositionX(), position.GetPositionY(), position.GetPositionZ(), position.GetOrientation()))
+            {
+                delete summon;
+                handler->PSendSysMessage("%s creature %u creation failed.", T3ATestPrefix, entry);
+                return false;
+            }
+
+            summon->SetHomePosition(position);
+            summon->InitStats(0);
+            if (!ownerAfterInsertion)
+                summon->SetPrivateObjectOwner(owner->GetGUID());
+            if (!map->AddToMap(summon))
+            {
+                delete summon;
+                handler->PSendSysMessage("%s creature %u insertion failed.", T3ATestPrefix, entry);
+                return false;
+            }
+            summon->InitSummon();
+            if (ownerAfterInsertion)
+                summon->SetPrivateObjectOwner(owner->GetGUID());
+            object = summon;
+        }
+        else
+        {
+            GameObjectTemplate const* objectInfo = sObjectMgr->GetGameObjectTemplate(entry);
+            if (!objectInfo)
+            {
+                handler->PSendSysMessage("%s gameobject_template %u does not exist.", T3ATestPrefix, entry);
+                return false;
+            }
+
+            if (objectInfo->displayId && !sGameObjectDisplayInfoStore.LookupEntry(objectInfo->displayId))
+            {
+                handler->PSendSysMessage("%s gameobject_template %u has invalid display data.", T3ATestPrefix, entry);
+                return false;
+            }
+
+            GameObject* gameObject = new GameObject();
+            if (!gameObject->Create(map->GenerateLowGuid<HighGuid::GameObject>(), entry, map, phaseMask,
+                position.GetPositionX(), position.GetPositionY(), position.GetPositionZ(), position.GetOrientation(), { }, 0, GO_STATE_READY))
+            {
+                delete gameObject;
+                handler->PSendSysMessage("%s gameobject %u creation failed.", T3ATestPrefix, entry);
+                return false;
+            }
+
+            gameObject->SetSpawnedByDefault(false);
+            if (!ownerAfterInsertion)
+                gameObject->SetPrivateObjectOwner(owner->GetGUID());
+            if (!map->AddToMap(gameObject))
+            {
+                delete gameObject;
+                handler->PSendSysMessage("%s gameobject %u insertion failed.", T3ATestPrefix, entry);
+                return false;
+            }
+            if (ownerAfterInsertion)
+                gameObject->SetPrivateObjectOwner(owner->GetGUID());
+            object = gameObject;
+        }
+
+        T3ATestObjects.push_back({ object->GetGUID(), owner->GetGUID(), type, entry, map->GetId(), map->GetInstanceId(), phaseMask, ownerAfterInsertion });
+        handler->PSendSysMessage("%s %s entry=%u guid=" UI64FMTD " owner=%s ownerGuid=" UI64FMTD
+            " ownerLow=%u map=%u phase=%u mode=%s.", T3ATestPrefix,
+            type == T3ATestObjectType::Creature ? "Creature" : "GO", entry, object->GetGUID().GetRawValue(),
+            owner->GetName().c_str(), owner->GetGUID().GetRawValue(), owner->GetGUID().GetCounter(), map->GetId(), phaseMask,
+            ownerAfterInsertion ? "UNSAFE_OWNER_AFTER_INSERTION_NO_REFRESH" : "OWNER_BEFORE_INSERTION");
+        return true;
+    }
+
+    static bool HandleT3ATestCreatureCommand(ChatHandler* handler, char const* args)
+    {
+        return HandleT3ATestSpawnCommand(handler, args, T3ATestObjectType::Creature, false);
+    }
+
+    static bool HandleT3ATestCreatureAfterCommand(ChatHandler* handler, char const* args)
+    {
+        return HandleT3ATestSpawnCommand(handler, args, T3ATestObjectType::Creature, true);
+    }
+
+    static bool HandleT3ATestGameObjectCommand(ChatHandler* handler, char const* args)
+    {
+        return HandleT3ATestSpawnCommand(handler, args, T3ATestObjectType::GameObject, false);
+    }
+
+    static bool HandleT3ATestGameObjectAfterCommand(ChatHandler* handler, char const* args)
+    {
+        return HandleT3ATestSpawnCommand(handler, args, T3ATestObjectType::GameObject, true);
+    }
+
+    static bool HandleT3ATestListCommand(ChatHandler* handler, char const*)
+    {
+        handler->PSendSysMessage("%s tracked objects: %zu", T3ATestPrefix, T3ATestObjects.size());
+        for (T3ATestObject const& testObject : T3ATestObjects)
+        {
+            WorldObject* object = FindT3ATestObject(testObject);
+            handler->PSendSysMessage("%s %s entry=%u guid=" UI64FMTD " ownerGuid=" UI64FMTD
+                " ownerLow=%u map=%u instance=%u phase=%u inWorld=%s mode=%s", T3ATestPrefix,
+                testObject.Type == T3ATestObjectType::Creature ? "Creature" : "GO", testObject.Entry,
+                testObject.Guid.GetRawValue(), testObject.OwnerGuid.GetRawValue(), testObject.OwnerGuid.GetCounter(),
+                testObject.MapId, testObject.InstanceId, testObject.PhaseMask,
+                object && object->IsInWorld() ? "yes" : "no",
+                testObject.OwnerAfterInsertion ? "UNSAFE_AFTER" : "BEFORE");
+        }
+        return true;
+    }
+
+    static bool HandleT3ATestCleanupCommand(ChatHandler* handler, char const*)
+    {
+        uint32 removed = 0;
+        for (T3ATestObject const& testObject : T3ATestObjects)
+        {
+            WorldObject* object = FindT3ATestObject(testObject);
+            if (!object)
+                continue;
+
+            if (testObject.Type == T3ATestObjectType::Creature)
+                object->ToCreature()->DespawnOrUnsummon();
+            else
+                object->ToGameObject()->Delete();
+            ++removed;
+        }
+
+        T3ATestObjects.clear();
+        handler->PSendSysMessage("%s cleanup complete; removed=%u; known-missing entries were discarded.", T3ATestPrefix, removed);
+        return true;
+    }
+
+    static bool HandleT3ATestRefreshCommand(ChatHandler* handler, char const* args)
+    {
+        Player* player = ResolveT3ATestOwner(handler, args);
+        if (!player)
+            return false;
+
+        player->UpdateObjectVisibility(true);
+        handler->PSendSysMessage("%s forced established visibility refresh for %s guid=" UI64FMTD ".",
+            T3ATestPrefix, player->GetName().c_str(), player->GetGUID().GetRawValue());
+        return true;
     }
 
     static bool HandleDebugPlayCinematicCommand(ChatHandler* handler, char const* args)
