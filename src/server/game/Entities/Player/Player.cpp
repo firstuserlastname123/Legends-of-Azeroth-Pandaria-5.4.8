@@ -81,6 +81,7 @@
 #include "SpellPackets.h"
 #include "Transport.h"
 #include "TradeData.h"
+#include "TillersFarmSession.h"
 #include "UpdateData.h"
 #include "UpdateFieldFlags.h"
 #include "UpdateMask.h"
@@ -19347,6 +19348,8 @@ bool Player::LoadFromDB(ObjectGuid guid, CharacterDatabaseQueryHolder const& hol
 
     _LoadDeserterInfo(holder.GetPreparedResult(PLAYER_LOGIN_QUERY_LOAD_DESERTER_INFO));
     _LoadBattlegroundStats(holder.GetPreparedResult(PLAYER_LOGIN_QUERY_LOAD_BATTLGEROUND_STATS));
+
+    m_tillersFarmSession = std::make_unique<Tillers::TillersFarmSession>(GetGUID().GetCounter());
 
     return true;
 }
