@@ -68,6 +68,11 @@ class PlayerAI;
 class SpellHistory;
 class TradeData;
 
+namespace Tillers
+{
+class TillersFarmSession;
+}
+
 typedef std::deque<Mail*> PlayerMails;
 
 #define PLAYER_MAX_SKILLS           128
@@ -1849,6 +1854,8 @@ class TC_GAME_API Player : public Unit, public GridObject<Player>
 
     bool LoadFromDB(ObjectGuid guid, CharacterDatabaseQueryHolder const& holder);
     bool isBeingLoaded() const;
+
+    Tillers::TillersFarmSession const* GetTillersFarmSession() const { return m_tillersFarmSession.get(); }
 
     void Initialize(ObjectGuid::LowType guid);
     static uint32 GetUInt32ValueFromArray(Tokenizer const& data, uint16 index);
@@ -3710,6 +3717,7 @@ protected:
     uint32 m_currentPetId;
 
     std::unique_ptr<LootLockoutMap> m_lootLockouts;
+    std::unique_ptr<Tillers::TillersFarmSession> m_tillersFarmSession;
 
     CompletedChallengesMap m_CompletedChallenges;
 
