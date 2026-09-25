@@ -17,34 +17,6 @@ namespace Tillers
 {
 namespace
 {
-bool IsValidFarmState(FarmState state)
-{
-    switch (state)
-    {
-        case FarmState::Cleared:
-        case FarmState::WagonRemaining:
-        case FarmState::WeedsAndWagonRemaining:
-        case FarmState::Initial:
-            return true;
-        default:
-            return false;
-    }
-}
-
-bool IsValidPlotCount(uint8 count)
-{
-    return count == 4 || count == 8 || count == 12 || count == 16;
-}
-
-bool IsValidMaturity(time_t maturity)
-{
-    if constexpr (std::numeric_limits<time_t>::is_signed)
-        if (maturity < 0)
-            return false;
-
-    return static_cast<uintmax_t>(maturity) <= std::numeric_limits<uint32>::max();
-}
-
 bool CanRepresentMaturity(uint32 maturity)
 {
     return static_cast<uintmax_t>(maturity) <= static_cast<uintmax_t>(std::numeric_limits<time_t>::max());
@@ -52,7 +24,7 @@ bool CanRepresentMaturity(uint32 maturity)
 
 bool ValidateSnapshot(uint32 guidLow, PlayerFarmData const& data)
 {
-    if (!IsValidFarmState(data.state.farmPhase) || !IsValidPlotCount(data.state.plotsUnlocked) || data.plots.size() > MaxFarmPlots)
+    if (!FarmDataValidation::IsValidFarmState(data.state.farmPhase) || !FarmDataValidation::IsValidPlotCount(data.state.plotsUnlocked) || data.plots.size() > MaxFarmPlots)
     {
         TC_LOG_ERROR("sql.sql", "TillersFarmPersistence: invalid farm snapshot for GUID %u", guidLow);
         return false;
@@ -60,7 +32,8 @@ bool ValidateSnapshot(uint32 guidLow, PlayerFarmData const& data)
 
     for (auto const& [key, plot] : data.plots)
     {
-        if (key >= MaxFarmPlots || key != plot.plotId || static_cast<uint8>(plot.state) > 7 || (plot.maturity && !IsValidMaturity(*plot.maturity)))
+        if (!FarmDataValidation::IsValidPlotId(key) || key != plot.plotId || !FarmDataValidation::IsValidPlotState(plot.state) ||
+            (plot.maturity && !FarmDataValidation::IsValidMaturity(*plot.maturity)))
         {
             TC_LOG_ERROR("sql.sql", "TillersFarmPersistence: invalid plot snapshot for GUID %u, map key %u, plot ID %u", guidLow, key, plot.plotId);
             return false;
@@ -101,7 +74,7 @@ PlayerFarmData TillersFarmPersistence::Load(uint32 guidLow)
     Field* stateFields = stateResult->Fetch();
     FarmState farmPhase = static_cast<FarmState>(stateFields[0].GetUInt8());
     uint8 plotsUnlocked = stateFields[1].GetUInt8();
-    if (!IsValidFarmState(farmPhase) || !IsValidPlotCount(plotsUnlocked))
+    if (!FarmDataValidation::IsValidFarmState(farmPhase) || !FarmDataValidation::IsValidPlotCount(plotsUnlocked))
     {
         TC_LOG_ERROR("sql.sql", "TillersFarmPersistence: invalid root row for GUID %u", guidLow);
         data.loadStatus = FarmLoadStatus::InvalidRoot;
@@ -124,7 +97,9 @@ PlayerFarmData TillersFarmPersistence::Load(uint32 guidLow)
             uint8 plotState = fields[1].GetUInt8();
             uint8 watering = fields[3].GetUInt8();
             uint8 pests = fields[4].GetUInt8();
-            bool invalid = plotId >= MaxFarmPlots || plotState > 7 || watering > 1 || pests > 1 || data.plots.size() >= MaxFarmPlots || data.plots.count(plotId) != 0;
+            bool invalid = !FarmDataValidation::IsValidPlotId(plotId) ||
+                !FarmDataValidation::IsValidPlotState(static_cast<FarmPlotState>(plotState)) || watering > 1 || pests > 1 ||
+                data.plots.size() >= MaxFarmPlots || data.plots.count(plotId) != 0;
 
             std::optional<uint32> maturityValue;
             if (!fields[5].IsNull())

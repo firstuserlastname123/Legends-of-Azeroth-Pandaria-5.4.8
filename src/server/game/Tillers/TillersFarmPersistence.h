@@ -13,6 +13,7 @@
 #include "Define.h"
 #include "Transaction.h"
 #include <ctime>
+#include <limits>
 #include <map>
 #include <optional>
 
@@ -63,6 +64,47 @@ enum class FarmLoadStatus
     Persisted,
     InvalidRoot
 };
+
+namespace FarmDataValidation
+{
+constexpr bool IsValidFarmState(FarmState state)
+{
+    switch (state)
+    {
+        case FarmState::Cleared:
+        case FarmState::WagonRemaining:
+        case FarmState::WeedsAndWagonRemaining:
+        case FarmState::Initial:
+            return true;
+        default:
+            return false;
+    }
+}
+
+constexpr bool IsValidPlotCount(uint8 count)
+{
+    return count == 4 || count == 8 || count == 12 || count == 16;
+}
+
+constexpr bool IsValidPlotId(uint8 plotId)
+{
+    return plotId < MaxFarmPlots;
+}
+
+constexpr bool IsValidPlotState(FarmPlotState state)
+{
+    return static_cast<uint8>(state) <= static_cast<uint8>(FarmPlotState::State7);
+}
+
+constexpr bool IsValidMaturity(time_t maturity)
+{
+    if constexpr (std::numeric_limits<time_t>::is_signed)
+        if (maturity < 0)
+            return false;
+
+    return static_cast<uintmax_t>(maturity) <= std::numeric_limits<uint32>::max();
+}
+}
 
 struct PlayerFarmData
 {
