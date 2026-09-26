@@ -11,6 +11,23 @@
 
 namespace Tillers
 {
+std::optional<uint8> GetCanonicalPlotsUnlocked(FarmState state)
+{
+    switch (state)
+    {
+        case FarmState::Initial:
+            return 4;
+        case FarmState::WeedsAndWagonRemaining:
+            return 8;
+        case FarmState::WagonRemaining:
+            return 12;
+        case FarmState::Cleared:
+            return 16;
+        default:
+            return std::nullopt;
+    }
+}
+
 TillersFarmSession::TillersFarmSession(uint32 ownerGuidLow)
     : _ownerGuidLow(ownerGuidLow), _data(TillersFarmPersistence::Load(ownerGuidLow))
 {
@@ -20,6 +37,57 @@ FarmPlotData const* TillersFarmSession::GetPlot(uint8 plotId) const
 {
     auto itr = _data.plots.find(plotId);
     return itr != _data.plots.end() ? &itr->second : nullptr;
+}
+
+bool TillersFarmSession::IsProgressionConsistent() const
+{
+    if (!IsUsable())
+        return false;
+
+    std::optional<uint8> canonicalPlots = GetCanonicalPlotsUnlocked(_data.state.farmPhase);
+    return canonicalPlots && _data.state.plotsUnlocked == *canonicalPlots;
+}
+
+FarmProgressionResult TillersFarmSession::AdvanceFarmProgression()
+{
+    if (!IsUsable())
+        return FarmProgressionResult::Unusable;
+
+    if (!IsProgressionConsistent())
+        return FarmProgressionResult::InconsistentState;
+
+    FarmState nextState;
+    uint8 nextPlotsUnlocked;
+    switch (_data.state.farmPhase)
+    {
+        case FarmState::Initial:
+            nextState = FarmState::WeedsAndWagonRemaining;
+            nextPlotsUnlocked = 8;
+            break;
+        case FarmState::WeedsAndWagonRemaining:
+            nextState = FarmState::WagonRemaining;
+            nextPlotsUnlocked = 12;
+            break;
+        case FarmState::WagonRemaining:
+            nextState = FarmState::Cleared;
+            nextPlotsUnlocked = 16;
+            break;
+        case FarmState::Cleared:
+            return FarmProgressionResult::AtMaximum;
+        default:
+            return FarmProgressionResult::InconsistentState;
+    }
+
+    _data.state.farmPhase = nextState;
+    _data.state.plotsUnlocked = nextPlotsUnlocked;
+    MarkDirty();
+    return FarmProgressionResult::Advanced;
+}
+
+bool TillersFarmSession::IsPlotUnlocked(uint8 plotId) const
+{
+    return FarmDataValidation::IsValidPlotId(plotId) && IsProgressionConsistent() &&
+        plotId < _data.state.plotsUnlocked;
 }
 
 bool TillersFarmSession::SetFarmPhase(FarmState state)
@@ -63,7 +131,7 @@ bool TillersFarmSession::SetBestFriendUnlocks(uint16 unlocks)
 
 bool TillersFarmSession::EnsurePlot(uint8 plotId)
 {
-    if (!IsUsable() || !FarmDataValidation::IsValidPlotId(plotId))
+    if (!IsPlotUnlocked(plotId))
         return false;
 
     if (_data.plots.count(plotId) == 0)
@@ -73,6 +141,7 @@ bool TillersFarmSession::EnsurePlot(uint8 plotId)
         _data.plots.emplace(plotId, std::move(plot));
         MarkDirty();
     }
+
     return true;
 }
 
