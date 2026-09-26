@@ -29,6 +29,16 @@ enum class FarmSaveCompletionResult : uint8
     Failure
 };
 
+enum class FarmProgressionResult : uint8
+{
+    Advanced,
+    AtMaximum,
+    InconsistentState,
+    Unusable
+};
+
+std::optional<uint8> GetCanonicalPlotsUnlocked(FarmState state);
+
 class TillersFarmSession
 {
 public:
@@ -45,6 +55,10 @@ public:
     PlayerFarmState const& GetFarmState() const { return _data.state; }
     std::map<uint8, FarmPlotData> const& GetPlots() const { return _data.plots; }
     FarmPlotData const* GetPlot(uint8 plotId) const;
+
+    bool IsProgressionConsistent() const;
+    FarmProgressionResult AdvanceFarmProgression();
+    bool IsPlotUnlocked(uint8 plotId) const;
 
     bool SetFarmPhase(FarmState state);
     bool SetPlotsUnlocked(uint8 count);
