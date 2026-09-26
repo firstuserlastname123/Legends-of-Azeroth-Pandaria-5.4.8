@@ -31,14 +31,14 @@ enum class FarmState : uint8
 
 enum class FarmPlotState : uint8
 {
-    State0 = 0,
-    State1 = 1,
-    State2 = 2,
-    State3 = 3,
-    State4 = 4,
-    State5 = 5,
-    State6 = 6,
-    State7 = 7
+    Empty = 0,
+    SoilPrepared = 1,
+    Seeded = 2,
+    Growing = 3,
+    NeedsWater = 4,
+    NeedsPestControl = 5,
+    ReadyToHarvest = 6,
+    Broken = 7
 };
 
 struct PlayerFarmState
@@ -51,7 +51,7 @@ struct PlayerFarmState
 struct FarmPlotData
 {
     uint8 plotId = 0;
-    FarmPlotState state = FarmPlotState::State0;
+    FarmPlotState state = FarmPlotState::Empty;
     std::optional<uint32> seedEntry;
     bool needsWatering = false;
     bool hasPests = false;
@@ -93,7 +93,7 @@ constexpr bool IsValidPlotId(uint8 plotId)
 
 constexpr bool IsValidPlotState(FarmPlotState state)
 {
-    return static_cast<uint8>(state) <= static_cast<uint8>(FarmPlotState::State7);
+    return static_cast<uint8>(state) <= static_cast<uint8>(FarmPlotState::Broken);
 }
 
 constexpr bool IsValidMaturity(time_t maturity)
