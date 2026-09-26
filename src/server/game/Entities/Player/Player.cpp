@@ -1131,6 +1131,9 @@ void Player::Update(uint32 p_time)
 
     sScriptMgr->OnPlayerBeforeUpdate(this, p_time);
 
+    if (m_tillersFarmSession)
+        m_tillersFarmSession->ProcessPersistence();
+
     uint64 victimGuid = GetVictim() ? GetVictim()->GetGUID() : 0;
     m_assistTimer += p_time;
     for (auto it = m_lastTargets.begin(); it != m_lastTargets.end();)

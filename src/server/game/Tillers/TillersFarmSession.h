@@ -14,6 +14,21 @@
 
 namespace Tillers
 {
+enum class FarmSaveRequestResult : uint8
+{
+    Queued,
+    NoChanges,
+    AlreadyPending,
+    Rejected
+};
+
+enum class FarmSaveCompletionResult : uint8
+{
+    None,
+    Success,
+    Failure
+};
+
 class TillersFarmSession
 {
 public:
@@ -23,6 +38,9 @@ public:
     FarmLoadStatus GetLoadStatus() const { return _data.loadStatus; }
     bool IsUsable() const { return _data.loadStatus != FarmLoadStatus::InvalidRoot; }
     bool IsDirty() const { return _dirty; }
+    bool NeedsPersistence() const { return _dirty || _data.loadStatus == FarmLoadStatus::NotPersisted; }
+    bool HasPendingSave() const { return _pendingSave.has_value(); }
+    FarmSaveCompletionResult GetLastSaveResult() const { return _lastSaveResult; }
     PlayerFarmData const& GetFarmData() const { return _data; }
     PlayerFarmState const& GetFarmState() const { return _data.state; }
     std::map<uint8, FarmPlotData> const& GetPlots() const { return _data.plots; }
@@ -40,12 +58,21 @@ public:
     bool SetPlotHasPests(uint8 plotId, bool hasPests);
     bool SetPlotMaturity(uint8 plotId, std::optional<time_t> maturity);
 
+    FarmSaveRequestResult RequestSave();
+    void ProcessPersistence();
+
 private:
     FarmPlotData* GetMutablePlot(uint8 plotId);
+    void MarkDirty();
+    void HandleSaveCompletion(bool success, uint64 savedRevision);
 
     uint32 const _ownerGuidLow;
     PlayerFarmData _data;
     bool _dirty = false;
+    uint64 _mutationRevision = 0;
+    uint64 _pendingSaveRevision = 0;
+    std::optional<TransactionCallback> _pendingSave;
+    FarmSaveCompletionResult _lastSaveResult = FarmSaveCompletionResult::None;
 };
 }
 

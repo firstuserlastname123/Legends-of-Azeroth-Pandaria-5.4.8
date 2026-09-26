@@ -30,7 +30,7 @@ bool TillersFarmSession::SetFarmPhase(FarmState state)
     if (_data.state.farmPhase != state)
     {
         _data.state.farmPhase = state;
-        _dirty = true;
+        MarkDirty();
     }
     return true;
 }
@@ -43,7 +43,7 @@ bool TillersFarmSession::SetPlotsUnlocked(uint8 count)
     if (_data.state.plotsUnlocked != count)
     {
         _data.state.plotsUnlocked = count;
-        _dirty = true;
+        MarkDirty();
     }
     return true;
 }
@@ -56,7 +56,7 @@ bool TillersFarmSession::SetBestFriendUnlocks(uint16 unlocks)
     if (_data.state.bestFriendUnlocks != unlocks)
     {
         _data.state.bestFriendUnlocks = unlocks;
-        _dirty = true;
+        MarkDirty();
     }
     return true;
 }
@@ -71,7 +71,7 @@ bool TillersFarmSession::EnsurePlot(uint8 plotId)
         FarmPlotData plot;
         plot.plotId = plotId;
         _data.plots.emplace(plotId, std::move(plot));
-        _dirty = true;
+        MarkDirty();
     }
     return true;
 }
@@ -82,7 +82,9 @@ bool TillersFarmSession::RemovePlot(uint8 plotId)
         return false;
 
     if (_data.plots.erase(plotId) != 0)
-        _dirty = true;
+    {
+        MarkDirty();
+    }
     return true;
 }
 
@@ -98,7 +100,7 @@ bool TillersFarmSession::SetPlotState(uint8 plotId, FarmPlotState state)
     if (plot->state != state)
     {
         plot->state = state;
-        _dirty = true;
+        MarkDirty();
     }
     return true;
 }
@@ -112,7 +114,7 @@ bool TillersFarmSession::SetPlotSeed(uint8 plotId, std::optional<uint32> seedEnt
     if (plot->seedEntry != seedEntry)
     {
         plot->seedEntry = seedEntry;
-        _dirty = true;
+        MarkDirty();
     }
     return true;
 }
@@ -126,7 +128,7 @@ bool TillersFarmSession::SetPlotNeedsWatering(uint8 plotId, bool needsWatering)
     if (plot->needsWatering != needsWatering)
     {
         plot->needsWatering = needsWatering;
-        _dirty = true;
+        MarkDirty();
     }
     return true;
 }
@@ -140,7 +142,7 @@ bool TillersFarmSession::SetPlotHasPests(uint8 plotId, bool hasPests)
     if (plot->hasPests != hasPests)
     {
         plot->hasPests = hasPests;
-        _dirty = true;
+        MarkDirty();
     }
     return true;
 }
@@ -157,7 +159,7 @@ bool TillersFarmSession::SetPlotMaturity(uint8 plotId, std::optional<time_t> mat
     if (plot->maturity != maturity)
     {
         plot->maturity = maturity;
-        _dirty = true;
+        MarkDirty();
     }
     return true;
 }
@@ -169,5 +171,55 @@ FarmPlotData* TillersFarmSession::GetMutablePlot(uint8 plotId)
 
     auto itr = _data.plots.find(plotId);
     return itr != _data.plots.end() ? &itr->second : nullptr;
+}
+
+FarmSaveRequestResult TillersFarmSession::RequestSave()
+{
+    if (HasPendingSave())
+        return FarmSaveRequestResult::AlreadyPending;
+
+    if (!IsUsable())
+        return FarmSaveRequestResult::Rejected;
+
+    if (!NeedsPersistence())
+        return FarmSaveRequestResult::NoChanges;
+
+    PlayerFarmData const snapshot = _data;
+    FarmWriteResult result = TillersFarmPersistence::Save(_ownerGuidLow, snapshot);
+    if (!result.accepted || !result.completion)
+        return FarmSaveRequestResult::Rejected;
+
+    _pendingSaveRevision = _mutationRevision;
+    result.completion->AfterComplete([this, savedRevision = _pendingSaveRevision](bool success)
+    {
+        HandleSaveCompletion(success, savedRevision);
+    });
+    _pendingSave.emplace(std::move(*result.completion));
+    return FarmSaveRequestResult::Queued;
+}
+
+void TillersFarmSession::ProcessPersistence()
+{
+    if (_pendingSave && _pendingSave->InvokeIfReady())
+        _pendingSave.reset();
+}
+
+void TillersFarmSession::MarkDirty()
+{
+    ++_mutationRevision;
+    _dirty = true;
+}
+
+void TillersFarmSession::HandleSaveCompletion(bool success, uint64 savedRevision)
+{
+    _lastSaveResult = success ? FarmSaveCompletionResult::Success : FarmSaveCompletionResult::Failure;
+    if (!success)
+        return;
+
+    if (_data.loadStatus == FarmLoadStatus::NotPersisted)
+        _data.loadStatus = FarmLoadStatus::Persisted;
+
+    if (_mutationRevision == savedRevision)
+        _dirty = false;
 }
 }
