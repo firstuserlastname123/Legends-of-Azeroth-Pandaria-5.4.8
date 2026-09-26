@@ -233,6 +233,104 @@ bool TillersFarmSession::SetPlotMaturity(uint8 plotId, std::optional<time_t> mat
     return true;
 }
 
+FarmPlotLifecycleResult TillersFarmSession::MaturePlotIfDue(uint8 plotId, time_t now)
+{
+    FarmPlotData* plot = nullptr;
+    FarmPlotLifecycleResult eligibility = GetLifecyclePlot(plotId, plot);
+    if (eligibility != FarmPlotLifecycleResult::Applied)
+        return eligibility;
+
+    if (plot->state != FarmPlotState::Seeded && plot->state != FarmPlotState::Growing)
+        return FarmPlotLifecycleResult::WrongState;
+
+    if (!plot->maturity || now < *plot->maturity)
+        return FarmPlotLifecycleResult::NoChange;
+
+    plot->state = FarmPlotState::ReadyToHarvest;
+    plot->maturity = std::nullopt;
+    MarkDirty();
+    return FarmPlotLifecycleResult::Applied;
+}
+
+FarmPlotLifecycleResult TillersFarmSession::ResolvePlotWatering(uint8 plotId)
+{
+    FarmPlotData* plot = nullptr;
+    FarmPlotLifecycleResult eligibility = GetLifecyclePlot(plotId, plot);
+    if (eligibility != FarmPlotLifecycleResult::Applied)
+        return eligibility;
+
+    if (plot->state != FarmPlotState::NeedsWater)
+        return FarmPlotLifecycleResult::WrongState;
+
+    plot->state = FarmPlotState::Growing;
+    plot->needsWatering = false;
+    MarkDirty();
+    return FarmPlotLifecycleResult::Applied;
+}
+
+FarmPlotLifecycleResult TillersFarmSession::ResolvePlotPests(uint8 plotId)
+{
+    FarmPlotData* plot = nullptr;
+    FarmPlotLifecycleResult eligibility = GetLifecyclePlot(plotId, plot);
+    if (eligibility != FarmPlotLifecycleResult::Applied)
+        return eligibility;
+
+    if (plot->state != FarmPlotState::NeedsPestControl)
+        return FarmPlotLifecycleResult::WrongState;
+
+    plot->state = FarmPlotState::Growing;
+    plot->hasPests = false;
+    MarkDirty();
+    return FarmPlotLifecycleResult::Applied;
+}
+
+FarmPlotLifecycleResult TillersFarmSession::ResetHarvestedPlot(uint8 plotId)
+{
+    FarmPlotData* plot = nullptr;
+    FarmPlotLifecycleResult eligibility = GetLifecyclePlot(plotId, plot);
+    if (eligibility != FarmPlotLifecycleResult::Applied)
+        return eligibility;
+
+    if (plot->state != FarmPlotState::ReadyToHarvest)
+        return FarmPlotLifecycleResult::WrongState;
+
+    plot->state = FarmPlotState::SoilPrepared;
+    plot->seedEntry = std::nullopt;
+    plot->needsWatering = false;
+    plot->hasPests = false;
+    plot->maturity = std::nullopt;
+    MarkDirty();
+    return FarmPlotLifecycleResult::Applied;
+}
+
+bool TillersFarmSession::IsPlotReadyToHarvest(uint8 plotId) const
+{
+    if (!IsUsable() || !IsProgressionConsistent() || !FarmDataValidation::IsValidPlotId(plotId) ||
+        plotId >= _data.state.plotsUnlocked)
+        return false;
+
+    FarmPlotData const* plot = GetPlot(plotId);
+    return plot && plot->state == FarmPlotState::ReadyToHarvest;
+}
+
+FarmPlotLifecycleResult TillersFarmSession::GetLifecyclePlot(uint8 plotId, FarmPlotData*& plot)
+{
+    plot = nullptr;
+    if (!IsUsable())
+        return FarmPlotLifecycleResult::Unusable;
+    if (!IsProgressionConsistent())
+        return FarmPlotLifecycleResult::InconsistentFarm;
+    if (!FarmDataValidation::IsValidPlotId(plotId) || plotId >= _data.state.plotsUnlocked)
+        return FarmPlotLifecycleResult::LockedPlot;
+
+    auto itr = _data.plots.find(plotId);
+    if (itr == _data.plots.end())
+        return FarmPlotLifecycleResult::MissingPlot;
+
+    plot = &itr->second;
+    return FarmPlotLifecycleResult::Applied;
+}
+
 FarmPlotData* TillersFarmSession::GetMutablePlot(uint8 plotId)
 {
     if (!IsUsable() || !FarmDataValidation::IsValidPlotId(plotId))
