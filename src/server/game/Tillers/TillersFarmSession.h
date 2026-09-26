@@ -48,6 +48,26 @@ enum class FarmPlotLifecycleResult : uint8
     WrongState
 };
 
+enum class FarmPlantingOutcome : uint8
+{
+    Seeded,
+    NeedsWater,
+    NeedsPestControl,
+    ReadyToHarvest
+};
+
+enum class FarmPlantingResult : uint8
+{
+    Applied,
+    MissingPlot,
+    LockedPlot,
+    InconsistentFarm,
+    Unusable,
+    WrongState,
+    InvalidSeed,
+    InvalidMaturity
+};
+
 std::optional<uint8> GetCanonicalPlotsUnlocked(FarmState state);
 
 class TillersFarmSession
@@ -89,11 +109,16 @@ public:
     FarmPlotLifecycleResult ResetHarvestedPlot(uint8 plotId);
     bool IsPlotReadyToHarvest(uint8 plotId) const;
 
+    FarmPlantingResult PlantCrop(uint8 plotId, uint32 seedEntry, FarmPlantingOutcome outcome,
+        std::optional<time_t> maturity);
+    bool IsPlotPlantable(uint8 plotId) const;
+
     FarmSaveRequestResult RequestSave();
     void ProcessPersistence();
 
 private:
     FarmPlotLifecycleResult GetLifecyclePlot(uint8 plotId, FarmPlotData*& plot);
+    FarmPlotLifecycleResult GetLifecyclePlot(uint8 plotId, FarmPlotData const*& plot) const;
     FarmPlotData* GetMutablePlot(uint8 plotId);
     void MarkDirty();
     void HandleSaveCompletion(bool success, uint64 savedRevision);
