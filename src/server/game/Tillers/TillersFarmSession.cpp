@@ -55,6 +55,54 @@ FarmPlantingPolicyResult BuildPlantingPlan(uint16 burstRoll, uint16 problemRoll,
     return FarmPlantingPolicyResult::Ready;
 }
 
+std::optional<uint32> GetPreservedHarvestItemForSeed(uint32 seedEntry)
+{
+    // This table preserves historical custom-server policy; it is not asserted as
+    // independently verified retail 5.4.8 behavior.
+    switch (seedEntry)
+    {
+        case 79102: return 74840;
+        case 80590: return 74841;
+        case 80591: return 74843;
+        case 80592: return 74842;
+        case 80593: return 74844;
+        case 80594: return 74849;
+        case 80595: return 74850;
+        case 89328: return 74847;
+        case 89329: return 74848;
+        default: return std::nullopt;
+    }
+}
+
+FarmHarvestPolicyResult BuildHarvestRewardPlan(uint32 seedEntry, uint8 plumpRoll,
+    uint8 seedReturnRoll, uint8 seedReturnCount, FarmHarvestPlan& plan)
+{
+    if (seedEntry == 0)
+        return FarmHarvestPolicyResult::InvalidSeed;
+    if (plumpRoll < 1 || plumpRoll > 100)
+        return FarmHarvestPolicyResult::InvalidPlumpRoll;
+    if (seedReturnRoll > 1)
+        return FarmHarvestPolicyResult::InvalidSeedReturnRoll;
+    if (seedReturnRoll == 1 && (seedReturnCount < 1 || seedReturnCount > 3))
+        return FarmHarvestPolicyResult::InvalidSeedReturnCount;
+
+    std::optional<uint32> const harvestItem = GetPreservedHarvestItemForSeed(seedEntry);
+    bool const plumpBonus = plumpRoll <= 5;
+
+    FarmHarvestPlan completePlan;
+    completePlan.plantedSeedEntry = seedEntry;
+    completePlan.primaryItemEntry = harvestItem.value_or(seedEntry);
+    completePlan.primaryItemCount = harvestItem ? 5 : 1;
+    completePlan.returnedSeedCount = seedReturnRoll == 1 ? seedReturnCount : 0;
+    completePlan.plumpBonus = plumpBonus;
+    completePlan.legacySeedFallback = !harvestItem;
+    if (plumpBonus)
+        completePlan.primaryItemCount += 3;
+
+    plan = completePlan;
+    return FarmHarvestPolicyResult::Ready;
+}
+
 TillersFarmSession::TillersFarmSession(uint32 ownerGuidLow)
     : _ownerGuidLow(ownerGuidLow), _data(TillersFarmPersistence::Load(ownerGuidLow))
 {
@@ -337,6 +385,48 @@ bool TillersFarmSession::IsPlotReadyToHarvest(uint8 plotId) const
         return false;
 
     return plot->state == FarmPlotState::ReadyToHarvest;
+}
+
+FarmHarvestResult TillersFarmSession::PrepareHarvest(uint8 plotId, uint8 plumpRoll,
+    uint8 seedReturnRoll, uint8 seedReturnCount, FarmHarvestPlan& plan) const
+{
+    FarmPlotData const* plot = nullptr;
+    switch (GetLifecyclePlot(plotId, plot))
+    {
+        case FarmPlotLifecycleResult::Applied:
+            break;
+        case FarmPlotLifecycleResult::MissingPlot:
+            return FarmHarvestResult::MissingPlot;
+        case FarmPlotLifecycleResult::LockedPlot:
+            return FarmHarvestResult::LockedPlot;
+        case FarmPlotLifecycleResult::InconsistentFarm:
+            return FarmHarvestResult::InconsistentFarm;
+        case FarmPlotLifecycleResult::Unusable:
+            return FarmHarvestResult::Unusable;
+        default:
+            return FarmHarvestResult::WrongState;
+    }
+
+    if (plot->state != FarmPlotState::ReadyToHarvest)
+        return FarmHarvestResult::WrongState;
+    if (!plot->seedEntry)
+        return FarmHarvestResult::MissingSeed;
+
+    switch (BuildHarvestRewardPlan(*plot->seedEntry, plumpRoll, seedReturnRoll, seedReturnCount, plan))
+    {
+        case FarmHarvestPolicyResult::Ready:
+            return FarmHarvestResult::Ready;
+        case FarmHarvestPolicyResult::InvalidSeed:
+            return FarmHarvestResult::InvalidSeed;
+        case FarmHarvestPolicyResult::InvalidPlumpRoll:
+            return FarmHarvestResult::InvalidPlumpRoll;
+        case FarmHarvestPolicyResult::InvalidSeedReturnRoll:
+            return FarmHarvestResult::InvalidSeedReturnRoll;
+        case FarmHarvestPolicyResult::InvalidSeedReturnCount:
+            return FarmHarvestResult::InvalidSeedReturnCount;
+    }
+
+    return FarmHarvestResult::InvalidSeed;
 }
 
 FarmPlantingResult TillersFarmSession::PlantCrop(uint8 plotId, uint32 seedEntry,

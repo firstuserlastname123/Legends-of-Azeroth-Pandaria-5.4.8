@@ -85,9 +85,48 @@ enum class FarmPlantingPolicyResult : uint8
     InvalidResetTime
 };
 
+// Logical reward data preserved from the historical custom Tillers implementation.
+// Applying these rewards and finalizing the plot are deliberately separate operations.
+struct FarmHarvestPlan
+{
+    uint32 plantedSeedEntry = 0;
+    uint32 primaryItemEntry = 0;
+    uint8 primaryItemCount = 0;
+    uint8 returnedSeedCount = 0;
+    bool plumpBonus = false;
+    bool legacySeedFallback = false;
+};
+
+enum class FarmHarvestPolicyResult : uint8
+{
+    Ready,
+    InvalidSeed,
+    InvalidPlumpRoll,
+    InvalidSeedReturnRoll,
+    InvalidSeedReturnCount
+};
+
+enum class FarmHarvestResult : uint8
+{
+    Ready,
+    MissingPlot,
+    LockedPlot,
+    InconsistentFarm,
+    Unusable,
+    WrongState,
+    MissingSeed,
+    InvalidSeed,
+    InvalidPlumpRoll,
+    InvalidSeedReturnRoll,
+    InvalidSeedReturnCount
+};
+
 std::optional<uint8> GetCanonicalPlotsUnlocked(FarmState state);
 FarmPlantingPolicyResult BuildPlantingPlan(uint16 burstRoll, uint16 problemRoll, time_t nextReset,
     FarmPlantingPlan& plan);
+std::optional<uint32> GetPreservedHarvestItemForSeed(uint32 seedEntry);
+FarmHarvestPolicyResult BuildHarvestRewardPlan(uint32 seedEntry, uint8 plumpRoll,
+    uint8 seedReturnRoll, uint8 seedReturnCount, FarmHarvestPlan& plan);
 
 class TillersFarmSession
 {
@@ -127,6 +166,8 @@ public:
     FarmPlotLifecycleResult ResolvePlotPests(uint8 plotId);
     FarmPlotLifecycleResult ResetHarvestedPlot(uint8 plotId);
     bool IsPlotReadyToHarvest(uint8 plotId) const;
+    FarmHarvestResult PrepareHarvest(uint8 plotId, uint8 plumpRoll, uint8 seedReturnRoll,
+        uint8 seedReturnCount, FarmHarvestPlan& plan) const;
 
     FarmPlantingResult PlantCrop(uint8 plotId, uint32 seedEntry, FarmPlantingOutcome outcome,
         std::optional<time_t> maturity);
