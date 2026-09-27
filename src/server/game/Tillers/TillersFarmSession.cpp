@@ -28,6 +28,33 @@ std::optional<uint8> GetCanonicalPlotsUnlocked(FarmState state)
     }
 }
 
+FarmPlantingPolicyResult BuildPlantingPlan(uint16 burstRoll, uint16 problemRoll, time_t nextReset,
+    FarmPlantingPlan& plan)
+{
+    if (burstRoll < 1 || burstRoll > 1000)
+        return FarmPlantingPolicyResult::InvalidBurstRoll;
+
+    if (burstRoll <= 11)
+    {
+        plan = { FarmPlantingOutcome::ReadyToHarvest, std::nullopt };
+        return FarmPlantingPolicyResult::Ready;
+    }
+
+    if (problemRoll < 1 || problemRoll > 1000)
+        return FarmPlantingPolicyResult::InvalidProblemRoll;
+    if (nextReset <= 0 || !FarmDataValidation::IsValidMaturity(nextReset))
+        return FarmPlantingPolicyResult::InvalidResetTime;
+
+    FarmPlantingOutcome outcome = FarmPlantingOutcome::Seeded;
+    if (problemRoll <= 140)
+        outcome = FarmPlantingOutcome::NeedsWater;
+    else if (problemRoll <= 280)
+        outcome = FarmPlantingOutcome::NeedsPestControl;
+
+    plan = { outcome, nextReset };
+    return FarmPlantingPolicyResult::Ready;
+}
+
 TillersFarmSession::TillersFarmSession(uint32 ownerGuidLow)
     : _ownerGuidLow(ownerGuidLow), _data(TillersFarmPersistence::Load(ownerGuidLow))
 {
@@ -372,6 +399,25 @@ FarmPlantingResult TillersFarmSession::PlantCrop(uint8 plotId, uint32 seedEntry,
     plot->maturity = maturity;
     MarkDirty();
     return FarmPlantingResult::Applied;
+}
+
+FarmPlantingResult TillersFarmSession::PlantCropWithPolicy(uint8 plotId, uint32 seedEntry,
+    uint16 burstRoll, uint16 problemRoll, time_t nextReset)
+{
+    FarmPlantingPlan plan;
+    switch (BuildPlantingPlan(burstRoll, problemRoll, nextReset, plan))
+    {
+        case FarmPlantingPolicyResult::Ready:
+            break;
+        case FarmPlantingPolicyResult::InvalidBurstRoll:
+            return FarmPlantingResult::InvalidBurstRoll;
+        case FarmPlantingPolicyResult::InvalidProblemRoll:
+            return FarmPlantingResult::InvalidProblemRoll;
+        case FarmPlantingPolicyResult::InvalidResetTime:
+            return FarmPlantingResult::InvalidResetTime;
+    }
+
+    return PlantCrop(plotId, seedEntry, plan.outcome, plan.maturity);
 }
 
 bool TillersFarmSession::IsPlotPlantable(uint8 plotId) const

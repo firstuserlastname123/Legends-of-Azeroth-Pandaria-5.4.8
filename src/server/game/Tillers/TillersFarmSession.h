@@ -65,10 +65,29 @@ enum class FarmPlantingResult : uint8
     Unusable,
     WrongState,
     InvalidSeed,
-    InvalidMaturity
+    InvalidMaturity,
+    InvalidBurstRoll,
+    InvalidProblemRoll,
+    InvalidResetTime
+};
+
+struct FarmPlantingPlan
+{
+    FarmPlantingOutcome outcome;
+    std::optional<time_t> maturity;
+};
+
+enum class FarmPlantingPolicyResult : uint8
+{
+    Ready,
+    InvalidBurstRoll,
+    InvalidProblemRoll,
+    InvalidResetTime
 };
 
 std::optional<uint8> GetCanonicalPlotsUnlocked(FarmState state);
+FarmPlantingPolicyResult BuildPlantingPlan(uint16 burstRoll, uint16 problemRoll, time_t nextReset,
+    FarmPlantingPlan& plan);
 
 class TillersFarmSession
 {
@@ -111,6 +130,8 @@ public:
 
     FarmPlantingResult PlantCrop(uint8 plotId, uint32 seedEntry, FarmPlantingOutcome outcome,
         std::optional<time_t> maturity);
+    FarmPlantingResult PlantCropWithPolicy(uint8 plotId, uint32 seedEntry, uint16 burstRoll,
+        uint16 problemRoll, time_t nextReset);
     bool IsPlotPlantable(uint8 plotId) const;
 
     FarmSaveRequestResult RequestSave();
