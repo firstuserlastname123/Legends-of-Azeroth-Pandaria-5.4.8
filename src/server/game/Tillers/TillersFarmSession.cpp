@@ -305,15 +305,91 @@ FarmPlotLifecycleResult TillersFarmSession::ResetHarvestedPlot(uint8 plotId)
 
 bool TillersFarmSession::IsPlotReadyToHarvest(uint8 plotId) const
 {
-    if (!IsUsable() || !IsProgressionConsistent() || !FarmDataValidation::IsValidPlotId(plotId) ||
-        plotId >= _data.state.plotsUnlocked)
+    FarmPlotData const* plot = nullptr;
+    if (GetLifecyclePlot(plotId, plot) != FarmPlotLifecycleResult::Applied)
         return false;
 
-    FarmPlotData const* plot = GetPlot(plotId);
-    return plot && plot->state == FarmPlotState::ReadyToHarvest;
+    return plot->state == FarmPlotState::ReadyToHarvest;
+}
+
+FarmPlantingResult TillersFarmSession::PlantCrop(uint8 plotId, uint32 seedEntry,
+    FarmPlantingOutcome outcome, std::optional<time_t> maturity)
+{
+    FarmPlotData* plot = nullptr;
+    switch (GetLifecyclePlot(plotId, plot))
+    {
+        case FarmPlotLifecycleResult::Applied:
+            break;
+        case FarmPlotLifecycleResult::MissingPlot:
+            return FarmPlantingResult::MissingPlot;
+        case FarmPlotLifecycleResult::LockedPlot:
+            return FarmPlantingResult::LockedPlot;
+        case FarmPlotLifecycleResult::InconsistentFarm:
+            return FarmPlantingResult::InconsistentFarm;
+        case FarmPlotLifecycleResult::Unusable:
+            return FarmPlantingResult::Unusable;
+        default:
+            return FarmPlantingResult::WrongState;
+    }
+
+    if (plot->state != FarmPlotState::SoilPrepared)
+        return FarmPlantingResult::WrongState;
+    if (seedEntry == 0)
+        return FarmPlantingResult::InvalidSeed;
+
+    bool const timedOutcome = outcome != FarmPlantingOutcome::ReadyToHarvest;
+    if ((timedOutcome && (!maturity || *maturity <= 0 || !FarmDataValidation::IsValidMaturity(*maturity))) ||
+        (!timedOutcome && maturity))
+        return FarmPlantingResult::InvalidMaturity;
+
+    switch (outcome)
+    {
+        case FarmPlantingOutcome::Seeded:
+            plot->state = FarmPlotState::Seeded;
+            plot->needsWatering = false;
+            plot->hasPests = false;
+            break;
+        case FarmPlantingOutcome::NeedsWater:
+            plot->state = FarmPlotState::NeedsWater;
+            plot->needsWatering = true;
+            plot->hasPests = false;
+            break;
+        case FarmPlantingOutcome::NeedsPestControl:
+            plot->state = FarmPlotState::NeedsPestControl;
+            plot->needsWatering = false;
+            plot->hasPests = true;
+            break;
+        case FarmPlantingOutcome::ReadyToHarvest:
+            plot->state = FarmPlotState::ReadyToHarvest;
+            plot->needsWatering = false;
+            plot->hasPests = false;
+            break;
+        default:
+            return FarmPlantingResult::InvalidMaturity;
+    }
+
+    plot->seedEntry = seedEntry;
+    plot->maturity = maturity;
+    MarkDirty();
+    return FarmPlantingResult::Applied;
+}
+
+bool TillersFarmSession::IsPlotPlantable(uint8 plotId) const
+{
+    FarmPlotData const* plot = nullptr;
+    return GetLifecyclePlot(plotId, plot) == FarmPlotLifecycleResult::Applied &&
+        plot->state == FarmPlotState::SoilPrepared;
 }
 
 FarmPlotLifecycleResult TillersFarmSession::GetLifecyclePlot(uint8 plotId, FarmPlotData*& plot)
+{
+    FarmPlotData const* constPlot = nullptr;
+    FarmPlotLifecycleResult const result = static_cast<TillersFarmSession const*>(this)->GetLifecyclePlot(plotId, constPlot);
+    plot = const_cast<FarmPlotData*>(constPlot);
+    return result;
+}
+
+FarmPlotLifecycleResult TillersFarmSession::GetLifecyclePlot(uint8 plotId, FarmPlotData const*& plot) const
 {
     plot = nullptr;
     if (!IsUsable())
