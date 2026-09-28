@@ -47,6 +47,7 @@ void AddSC_enchantment_spell_scripts();
 void AddSC_SmartSCripts();
 
 void AddSC_Anticheat();
+void AddSC_tillers_plot_hooks();
 
 //Commands
 void AddSC_account_commandscript();
@@ -1887,6 +1888,7 @@ void AddEventScripts()
 void AddPandariaScripts()
 {
 #ifdef SCRIPTS
+    AddSC_tillers_plot_hooks();
     // Gate of the Setting Sun
     AddSC_boss_commander_rimok();
     AddSC_boss_raigonn();
