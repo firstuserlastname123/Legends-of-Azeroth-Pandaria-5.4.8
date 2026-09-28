@@ -165,6 +165,51 @@ bool TillersFarmSession::IsPlotUnlocked(uint8 plotId) const
         plotId < _data.state.plotsUnlocked;
 }
 
+bool TillersFarmSession::RegisterSoilObject(uint8 plotId, ObjectGuid objectGuid)
+{
+    if (!objectGuid || !IsUsable() || !IsProgressionConsistent() || !IsPlotUnlocked(plotId) || !GetPlot(plotId))
+        return false;
+
+    auto guidItr = _soilGuidToPlot.find(objectGuid);
+    auto plotItr = _plotToSoilGuid.find(plotId);
+    if (guidItr != _soilGuidToPlot.end() || plotItr != _plotToSoilGuid.end())
+        return false;
+
+    _soilGuidToPlot.emplace(objectGuid, plotId);
+    _plotToSoilGuid.emplace(plotId, objectGuid);
+    return true;
+}
+
+bool TillersFarmSession::ResolveSoilObject(ObjectGuid objectGuid, uint8& plotId) const
+{
+    if (!IsUsable() || !IsProgressionConsistent())
+        return false;
+
+    auto itr = _soilGuidToPlot.find(objectGuid);
+    if (itr == _soilGuidToPlot.end() || !IsPlotUnlocked(itr->second) || !GetPlot(itr->second))
+        return false;
+
+    plotId = itr->second;
+    return true;
+}
+
+bool TillersFarmSession::UnregisterSoilObject(ObjectGuid objectGuid)
+{
+    auto itr = _soilGuidToPlot.find(objectGuid);
+    if (itr == _soilGuidToPlot.end())
+        return false;
+
+    _plotToSoilGuid.erase(itr->second);
+    _soilGuidToPlot.erase(itr);
+    return true;
+}
+
+void TillersFarmSession::ClearSoilBindings()
+{
+    _soilGuidToPlot.clear();
+    _plotToSoilGuid.clear();
+}
+
 bool TillersFarmSession::SetFarmPhase(FarmState state)
 {
     if (!IsUsable() || !FarmDataValidation::IsValidFarmState(state))

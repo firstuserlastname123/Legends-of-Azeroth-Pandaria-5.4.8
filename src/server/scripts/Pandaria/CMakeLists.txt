@@ -13,6 +13,7 @@ set(scripts_STAT_SRCS
   Pandaria/boss_oondasta.cpp
   Pandaria/boss_nalak.cpp
   Pandaria/boss_sha_of_anger.cpp
+  Pandaria/tillers_plot_hooks.cpp
   Pandaria/boss_galion.cpp
   Pandaria/zone_dread_wastes.cpp
   Pandaria/zone_isle_of_giants.cpp

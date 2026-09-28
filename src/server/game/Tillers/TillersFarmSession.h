@@ -11,6 +11,7 @@
 #define TILLERS_FARM_SESSION_H
 
 #include "TillersFarmPersistence.h"
+#include "ObjectGuid.h"
 
 namespace Tillers
 {
@@ -226,6 +227,12 @@ public:
         uint16 problemRoll, time_t nextReset);
     bool IsPlotPlantable(uint8 plotId) const;
 
+    bool RegisterSoilObject(uint8 plotId, ObjectGuid objectGuid);
+    bool ResolveSoilObject(ObjectGuid objectGuid, uint8& plotId) const;
+    bool UnregisterSoilObject(ObjectGuid objectGuid);
+    void ClearSoilBindings();
+    std::map<ObjectGuid, uint8> const& GetSoilBindings() const { return _soilGuidToPlot; }
+
     FarmSaveRequestResult RequestSave();
     void ProcessPersistence();
     FarmTransactionSaveResult AppendCurrentStateToTransaction(CharacterDatabaseTransaction const& transaction, uint64& savedRevision);
@@ -253,6 +260,9 @@ private:
     FarmHarvestClaimId _nextHarvestClaimId = 1;
     // Session-local coordination only; pending claims are deliberately not persisted.
     std::map<uint8, PendingHarvestClaim> _pendingHarvestClaims;
+    // Physical soil is session-local presentation state and is never persisted.
+    std::map<ObjectGuid, uint8> _soilGuidToPlot;
+    std::map<uint8, ObjectGuid> _plotToSoilGuid;
     uint64 _pendingSaveRevision = 0;
     std::optional<TransactionCallback> _pendingSave;
     FarmSaveCompletionResult _lastSaveResult = FarmSaveCompletionResult::None;
