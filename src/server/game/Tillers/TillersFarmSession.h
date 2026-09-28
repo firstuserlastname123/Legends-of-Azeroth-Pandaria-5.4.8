@@ -121,6 +121,45 @@ enum class FarmHarvestResult : uint8
     InvalidSeedReturnCount
 };
 
+using FarmHarvestClaimId = uint64;
+
+struct FarmHarvestClaim
+{
+    FarmHarvestClaimId claimId = 0;
+    uint8 plotId = 0;
+    FarmHarvestPlan plan;
+};
+
+enum class FarmHarvestClaimResult : uint8
+{
+    Ready,
+    AlreadyClaimed,
+    MissingPlot,
+    LockedPlot,
+    InconsistentFarm,
+    Unusable,
+    WrongState,
+    MissingSeed,
+    InvalidSeed,
+    InvalidPlumpRoll,
+    InvalidSeedReturnRoll,
+    InvalidSeedReturnCount
+};
+
+enum class FarmHarvestCancelResult : uint8
+{
+    Cancelled,
+    NotFound
+};
+
+enum class FarmHarvestFinalizeResult : uint8
+{
+    Finalized,
+    NotFound,
+    StaleClaim,
+    ResetRejected
+};
+
 std::optional<uint8> GetCanonicalPlotsUnlocked(FarmState state);
 FarmPlantingPolicyResult BuildPlantingPlan(uint16 burstRoll, uint16 problemRoll, time_t nextReset,
     FarmPlantingPlan& plan);
@@ -168,6 +207,11 @@ public:
     bool IsPlotReadyToHarvest(uint8 plotId) const;
     FarmHarvestResult PrepareHarvest(uint8 plotId, uint8 plumpRoll, uint8 seedReturnRoll,
         uint8 seedReturnCount, FarmHarvestPlan& plan) const;
+    FarmHarvestClaimResult BeginHarvestClaim(uint8 plotId, uint8 plumpRoll,
+        uint8 seedReturnRoll, uint8 seedReturnCount, FarmHarvestClaim& claim);
+    FarmHarvestCancelResult CancelHarvestClaim(FarmHarvestClaimId claimId);
+    FarmHarvestFinalizeResult FinalizeHarvestClaim(FarmHarvestClaimId claimId);
+    bool HasPendingHarvestClaim(uint8 plotId) const;
 
     FarmPlantingResult PlantCrop(uint8 plotId, uint32 seedEntry, FarmPlantingOutcome outcome,
         std::optional<time_t> maturity);
@@ -179,6 +223,14 @@ public:
     void ProcessPersistence();
 
 private:
+    struct PendingHarvestClaim
+    {
+        FarmHarvestClaimId claimId = 0;
+        uint8 plotId = 0;
+        FarmHarvestPlan plan;
+        FarmPlotData claimedPlot;
+    };
+
     FarmPlotLifecycleResult GetLifecyclePlot(uint8 plotId, FarmPlotData*& plot);
     FarmPlotLifecycleResult GetLifecyclePlot(uint8 plotId, FarmPlotData const*& plot) const;
     FarmPlotData* GetMutablePlot(uint8 plotId);
@@ -189,6 +241,9 @@ private:
     PlayerFarmData _data;
     bool _dirty = false;
     uint64 _mutationRevision = 0;
+    FarmHarvestClaimId _nextHarvestClaimId = 1;
+    // Session-local coordination only; pending claims are deliberately not persisted.
+    std::map<uint8, PendingHarvestClaim> _pendingHarvestClaims;
     uint64 _pendingSaveRevision = 0;
     std::optional<TransactionCallback> _pendingSave;
     FarmSaveCompletionResult _lastSaveResult = FarmSaveCompletionResult::None;

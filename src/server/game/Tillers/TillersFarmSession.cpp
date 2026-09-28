@@ -429,6 +429,112 @@ FarmHarvestResult TillersFarmSession::PrepareHarvest(uint8 plotId, uint8 plumpRo
     return FarmHarvestResult::InvalidSeed;
 }
 
+FarmHarvestClaimResult TillersFarmSession::BeginHarvestClaim(uint8 plotId, uint8 plumpRoll,
+    uint8 seedReturnRoll, uint8 seedReturnCount, FarmHarvestClaim& claim)
+{
+    if (HasPendingHarvestClaim(plotId))
+        return FarmHarvestClaimResult::AlreadyClaimed;
+
+    FarmHarvestPlan plan;
+    switch (PrepareHarvest(plotId, plumpRoll, seedReturnRoll, seedReturnCount, plan))
+    {
+        case FarmHarvestResult::Ready:
+            break;
+        case FarmHarvestResult::MissingPlot:
+            return FarmHarvestClaimResult::MissingPlot;
+        case FarmHarvestResult::LockedPlot:
+            return FarmHarvestClaimResult::LockedPlot;
+        case FarmHarvestResult::InconsistentFarm:
+            return FarmHarvestClaimResult::InconsistentFarm;
+        case FarmHarvestResult::Unusable:
+            return FarmHarvestClaimResult::Unusable;
+        case FarmHarvestResult::WrongState:
+            return FarmHarvestClaimResult::WrongState;
+        case FarmHarvestResult::MissingSeed:
+            return FarmHarvestClaimResult::MissingSeed;
+        case FarmHarvestResult::InvalidSeed:
+            return FarmHarvestClaimResult::InvalidSeed;
+        case FarmHarvestResult::InvalidPlumpRoll:
+            return FarmHarvestClaimResult::InvalidPlumpRoll;
+        case FarmHarvestResult::InvalidSeedReturnRoll:
+            return FarmHarvestClaimResult::InvalidSeedReturnRoll;
+        case FarmHarvestResult::InvalidSeedReturnCount:
+            return FarmHarvestClaimResult::InvalidSeedReturnCount;
+    }
+
+    FarmPlotData const* plot = GetPlot(plotId);
+    if (!plot)
+        return FarmHarvestClaimResult::MissingPlot;
+
+    FarmHarvestClaimId const claimId = _nextHarvestClaimId++;
+    if (_nextHarvestClaimId == 0)
+        _nextHarvestClaimId = 1;
+
+    FarmHarvestClaim completeClaim { claimId, plotId, plan };
+    PendingHarvestClaim pendingClaim { claimId, plotId, plan, *plot };
+    _pendingHarvestClaims.emplace(plotId, std::move(pendingClaim));
+    claim = completeClaim;
+    return FarmHarvestClaimResult::Ready;
+}
+
+FarmHarvestCancelResult TillersFarmSession::CancelHarvestClaim(FarmHarvestClaimId claimId)
+{
+    for (auto itr = _pendingHarvestClaims.begin(); itr != _pendingHarvestClaims.end(); ++itr)
+    {
+        if (itr->second.claimId == claimId)
+        {
+            _pendingHarvestClaims.erase(itr);
+            return FarmHarvestCancelResult::Cancelled;
+        }
+    }
+
+    return FarmHarvestCancelResult::NotFound;
+}
+
+FarmHarvestFinalizeResult TillersFarmSession::FinalizeHarvestClaim(FarmHarvestClaimId claimId)
+{
+    auto claimItr = _pendingHarvestClaims.end();
+    for (auto itr = _pendingHarvestClaims.begin(); itr != _pendingHarvestClaims.end(); ++itr)
+    {
+        if (itr->second.claimId == claimId)
+        {
+            claimItr = itr;
+            break;
+        }
+    }
+
+    if (claimItr == _pendingHarvestClaims.end())
+        return FarmHarvestFinalizeResult::NotFound;
+
+    PendingHarvestClaim const& claim = claimItr->second;
+    FarmPlotData const* plot = nullptr;
+    FarmPlotLifecycleResult const eligibility = GetLifecyclePlot(claim.plotId, plot);
+    FarmPlotData const& claimedPlot = claim.claimedPlot;
+    bool const stale = eligibility != FarmPlotLifecycleResult::Applied ||
+        plot->plotId != claimedPlot.plotId ||
+        plot->state != FarmPlotState::ReadyToHarvest ||
+        plot->state != claimedPlot.state ||
+        plot->seedEntry != claimedPlot.seedEntry ||
+        plot->needsWatering != claimedPlot.needsWatering ||
+        plot->hasPests != claimedPlot.hasPests ||
+        plot->maturity != claimedPlot.maturity;
+    if (stale)
+    {
+        _pendingHarvestClaims.erase(claimItr);
+        return FarmHarvestFinalizeResult::StaleClaim;
+    }
+
+    FarmPlotLifecycleResult const resetResult = ResetHarvestedPlot(claim.plotId);
+    _pendingHarvestClaims.erase(claimItr);
+    return resetResult == FarmPlotLifecycleResult::Applied ?
+        FarmHarvestFinalizeResult::Finalized : FarmHarvestFinalizeResult::ResetRejected;
+}
+
+bool TillersFarmSession::HasPendingHarvestClaim(uint8 plotId) const
+{
+    return _pendingHarvestClaims.count(plotId) != 0;
+}
+
 FarmPlantingResult TillersFarmSession::PlantCrop(uint8 plotId, uint32 seedEntry,
     FarmPlantingOutcome outcome, std::optional<time_t> maturity)
 {
