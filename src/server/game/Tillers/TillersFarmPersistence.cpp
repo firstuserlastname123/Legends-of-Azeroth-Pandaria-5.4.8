@@ -132,10 +132,21 @@ PlayerFarmData TillersFarmPersistence::Load(uint32 guidLow)
 
 FarmWriteResult TillersFarmPersistence::Save(uint32 guidLow, PlayerFarmData const& data)
 {
-    if (!ValidateSnapshot(guidLow, data))
+    CharacterDatabaseTransaction transaction = CharacterDatabase.BeginTransaction();
+    if (!AppendSave(transaction, guidLow, data))
         return {};
 
-    CharacterDatabaseTransaction transaction = CharacterDatabase.BeginTransaction();
+    FarmWriteResult result;
+    result.accepted = true;
+    result.completion.emplace(CharacterDatabase.AsyncCommitTransaction(transaction));
+    return result;
+}
+
+bool TillersFarmPersistence::AppendSave(CharacterDatabaseTransaction const& transaction, uint32 guidLow, PlayerFarmData const& data)
+{
+    if (!transaction || !ValidateSnapshot(guidLow, data))
+        return false;
+
     AppendState(transaction, guidLow, data.state);
     AppendPlotDelete(transaction, guidLow);
 
@@ -157,11 +168,7 @@ FarmWriteResult TillersFarmPersistence::Save(uint32 guidLow, PlayerFarmData cons
             statement->setNull(6);
         transaction->Append(statement);
     }
-
-    FarmWriteResult result;
-    result.accepted = true;
-    result.completion.emplace(CharacterDatabase.AsyncCommitTransaction(transaction));
-    return result;
+    return true;
 }
 
 FarmWriteResult TillersFarmPersistence::Reset(uint32 guidLow)

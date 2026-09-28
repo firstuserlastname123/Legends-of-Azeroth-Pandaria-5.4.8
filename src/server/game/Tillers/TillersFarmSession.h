@@ -29,6 +29,13 @@ enum class FarmSaveCompletionResult : uint8
     Failure
 };
 
+enum class FarmTransactionSaveResult : uint8
+{
+    Appended,
+    AlreadyPending,
+    Rejected
+};
+
 enum class FarmProgressionResult : uint8
 {
     Advanced,
@@ -221,6 +228,8 @@ public:
 
     FarmSaveRequestResult RequestSave();
     void ProcessPersistence();
+    FarmTransactionSaveResult AppendCurrentStateToTransaction(CharacterDatabaseTransaction const& transaction, uint64& savedRevision);
+    void CompleteTransactionSave(bool success, uint64 savedRevision);
 
 private:
     struct PendingHarvestClaim

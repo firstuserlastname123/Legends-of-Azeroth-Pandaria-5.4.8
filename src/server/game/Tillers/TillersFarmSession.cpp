@@ -689,6 +689,23 @@ void TillersFarmSession::ProcessPersistence()
         _pendingSave.reset();
 }
 
+FarmTransactionSaveResult TillersFarmSession::AppendCurrentStateToTransaction(
+    CharacterDatabaseTransaction const& transaction, uint64& savedRevision)
+{
+    if (HasPendingSave())
+        return FarmTransactionSaveResult::AlreadyPending;
+    if (!IsUsable() || !TillersFarmPersistence::AppendSave(transaction, _ownerGuidLow, _data))
+        return FarmTransactionSaveResult::Rejected;
+
+    savedRevision = _mutationRevision;
+    return FarmTransactionSaveResult::Appended;
+}
+
+void TillersFarmSession::CompleteTransactionSave(bool success, uint64 savedRevision)
+{
+    HandleSaveCompletion(success, savedRevision);
+}
+
 void TillersFarmSession::MarkDirty()
 {
     ++_mutationRevision;
