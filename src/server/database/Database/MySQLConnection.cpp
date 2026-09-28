@@ -366,9 +366,9 @@ bool MySQLConnection::_Query(const char* sql, MySQLResult** pResult, MySQLField*
     return true;
 }
 
-void MySQLConnection::BeginTransaction()
+bool MySQLConnection::BeginTransaction()
 {
-    Execute("START TRANSACTION");
+    return Execute("START TRANSACTION");
 }
 
 void MySQLConnection::RollbackTransaction()
@@ -376,9 +376,9 @@ void MySQLConnection::RollbackTransaction()
     Execute("ROLLBACK");
 }
 
-void MySQLConnection::CommitTransaction()
+bool MySQLConnection::CommitTransaction()
 {
-    Execute("COMMIT");
+    return Execute("COMMIT");
 }
 
 int MySQLConnection::ExecuteTransaction(std::shared_ptr<TransactionBase> transaction)
@@ -387,7 +387,8 @@ int MySQLConnection::ExecuteTransaction(std::shared_ptr<TransactionBase> transac
     if (queries.empty())
         return -1;
 
-    BeginTransaction();
+    if (!BeginTransaction())
+        return GetLastError() ? GetLastError() : -1;
 
     for (auto itr = queries.begin(); itr != queries.end(); ++itr)
     {
@@ -405,7 +406,12 @@ int MySQLConnection::ExecuteTransaction(std::shared_ptr<TransactionBase> transac
     // This is done in calling functions DatabaseWorkerPool<T>::DirectCommitTransaction and TransactionTask::Execute,
     // and not while iterating over every element.
 
-    CommitTransaction();
+    if (!CommitTransaction())
+    {
+        int errorCode = GetLastError();
+        RollbackTransaction();
+        return errorCode ? errorCode : -1;
+    }
     return 0;
 }
 

@@ -351,14 +351,14 @@ TransactionCallback DatabaseWorkerPool<T>::AsyncCommitTransaction(SQLTransaction
 }
 
 template <class T>
-void DatabaseWorkerPool<T>::DirectCommitTransaction(SQLTransaction<T>& transaction)
+bool DatabaseWorkerPool<T>::DirectCommitTransaction(SQLTransaction<T>& transaction)
 {
     T* connection = GetFreeConnection();
     int errorCode = connection->ExecuteTransaction(transaction);
     if (!errorCode)
     {
         connection->Unlock();      // OK, operation succesful
-        return;
+        return true;
     }
 
     //! Handle MySQL Errno 1213 without extending deadlock to the core itself
@@ -370,7 +370,10 @@ void DatabaseWorkerPool<T>::DirectCommitTransaction(SQLTransaction<T>& transacti
         for (uint8 i = 0; i < loopBreaker; ++i)
         {
             if (!connection->ExecuteTransaction(transaction))
-                break;
+            {
+                connection->Unlock();
+                return true;
+            }
         }
     }
 
@@ -378,6 +381,7 @@ void DatabaseWorkerPool<T>::DirectCommitTransaction(SQLTransaction<T>& transacti
     transaction->Cleanup();
 
     connection->Unlock();
+    return false;
 }
 
 template <class T>

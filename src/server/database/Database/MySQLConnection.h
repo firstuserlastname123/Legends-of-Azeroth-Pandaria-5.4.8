@@ -69,9 +69,9 @@ class TC_DATABASE_API MySQLConnection
         bool _Query(char const* sql, MySQLResult** pResult, MySQLField** pFields, uint64* pRowCount, uint32* pFieldCount);
         bool _Query(PreparedStatementBase* stmt, MySQLPreparedStatement** mysqlStmt, MySQLResult** pResult, uint64* pRowCount, uint32* pFieldCount);
 
-        void BeginTransaction();
+        bool BeginTransaction();
         void RollbackTransaction();
-        void CommitTransaction();
+        bool CommitTransaction();
         int ExecuteTransaction(std::shared_ptr<TransactionBase> transaction);
         size_t EscapeString(char* to, const char* from, size_t length);
         void Ping();

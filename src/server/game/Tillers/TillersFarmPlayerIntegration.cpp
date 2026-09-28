@@ -16,6 +16,7 @@
 #include "TillersFarmSession.h"
 #include <algorithm>
 #include <array>
+#include <cstdlib>
 #include <limits>
 #include <memory>
 #include <vector>
@@ -176,7 +177,12 @@ FarmPlayerHarvestResult ExecutePlayerHarvest(Player& player, uint8 plotId, uint8
     }
 
     player.SaveInventoryAndGoldToDB(transaction);
-    CharacterDatabase.CommitTransaction(transaction);
+    if (!CharacterDatabase.DirectCommitTransaction(transaction))
+    {
+        TC_LOG_FATAL("sql.sql", "Tillers harvest transaction failed for player %u; terminating to preserve inventory persistence bookkeeping",
+            player.GetGUID().GetCounter());
+        std::abort();
+    }
     session->CompleteTransactionSave(true, savedRevision);
     return FarmPlayerHarvestResult::Applied;
 }
