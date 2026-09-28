@@ -87,6 +87,14 @@ FarmPlayerHarvestResult ExecutePlayerHarvest(Player& player, uint8 plotId, uint8
     std::vector<std::unique_ptr<Item>> rewardItems;
     for (uint8 i = 0; i < rewardCount; ++i)
     {
+        InventoryResult ownershipResult = player.CanTakeMoreSimilarItems(rewards[i].itemEntry, rewards[i].count);
+        if (ownershipResult != EQUIP_ERR_OK)
+        {
+            session->CancelHarvestClaim(claim.claimId);
+            player.SendEquipError(ownershipResult, nullptr, nullptr);
+            return FarmPlayerHarvestResult::InventoryRejected;
+        }
+
         ItemTemplate const* itemTemplate = sObjectMgr->GetItemTemplate(rewards[i].itemEntry);
         if (!itemTemplate || rewards[i].count == 0 || itemTemplate->GetMaxStackSize() == 0)
         {
