@@ -88,6 +88,7 @@ void AddSC_server_commandscript();
 void AddSC_tele_commandscript();
 void AddSC_ticket_commandscript();
 void AddSC_titles_commandscript();
+void AddSC_tillers_commandscript();
 void AddSC_warden_commandscript();
 void AddSC_wp_commandscript();
 void AddSC_mmaps_commandscript();
@@ -1125,6 +1126,7 @@ void AddCommandScripts()
     AddSC_tele_commandscript();
     AddSC_ticket_commandscript();
     AddSC_titles_commandscript();
+    AddSC_tillers_commandscript();
     AddSC_warden_commandscript();
     AddSC_wp_commandscript();
     AddSC_mmaps_commandscript();
