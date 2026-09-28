@@ -14,9 +14,11 @@
 #include "ObjectMgr.h"
 #include "Player.h"
 #include "TillersFarmSession.h"
+#include <algorithm>
 #include <array>
 #include <limits>
 #include <memory>
+#include <vector>
 
 namespace Tillers
 {
@@ -82,27 +84,46 @@ FarmPlayerHarvestResult ExecutePlayerHarvest(Player& player, uint8 plotId, uint8
             rewards[rewardCount++] = { claim.plan.plantedSeedEntry, claim.plan.returnedSeedCount };
     }
 
-    std::array<std::unique_ptr<Item>, 2> preflightItems;
-    std::array<Item*, 2> preflightPointers{};
+    std::vector<std::unique_ptr<Item>> rewardItems;
     for (uint8 i = 0; i < rewardCount; ++i)
     {
         ItemTemplate const* itemTemplate = sObjectMgr->GetItemTemplate(rewards[i].itemEntry);
-        if (!itemTemplate || rewards[i].count == 0 || rewards[i].count > itemTemplate->GetMaxStackSize())
+        if (!itemTemplate || rewards[i].count == 0 || itemTemplate->GetMaxStackSize() == 0)
         {
             session->CancelHarvestClaim(claim.claimId);
             return FarmPlayerHarvestResult::InventoryRejected;
         }
 
-        preflightItems[i].reset(Item::CreateItem(rewards[i].itemEntry, rewards[i].count, &player, true));
-        if (!preflightItems[i])
+        uint32 remaining = rewards[i].count;
+        while (remaining != 0)
         {
-            session->CancelHarvestClaim(claim.claimId);
-            return FarmPlayerHarvestResult::InventoryRejected;
+            uint32 stackCount = std::min(remaining, itemTemplate->GetMaxStackSize());
+            std::unique_ptr<Item> item(Item::CreateItem(rewards[i].itemEntry, stackCount, &player));
+            if (!item)
+            {
+                session->CancelHarvestClaim(claim.claimId);
+                return FarmPlayerHarvestResult::InventoryRejected;
+            }
+
+            if (uint32 randomPropertyId = Item::GenerateItemRandomPropertyId(rewards[i].itemEntry))
+                item->SetItemRandomProperties(randomPropertyId);
+            rewardItems.push_back(std::move(item));
+            remaining -= stackCount;
         }
-        preflightPointers[i] = preflightItems[i].get();
     }
 
-    InventoryResult inventoryResult = player.CanStoreItems(preflightPointers.data(), rewardCount);
+    if (rewardItems.size() > static_cast<std::size_t>(std::numeric_limits<int>::max()))
+    {
+        session->CancelHarvestClaim(claim.claimId);
+        return FarmPlayerHarvestResult::InventoryRejected;
+    }
+
+    std::vector<Item*> preflightItems;
+    preflightItems.reserve(rewardItems.size());
+    for (std::unique_ptr<Item> const& item : rewardItems)
+        preflightItems.push_back(item.get());
+
+    InventoryResult inventoryResult = player.CanStoreItems(preflightItems.data(), static_cast<int>(preflightItems.size()));
     if (inventoryResult != EQUIP_ERR_OK)
     {
         session->CancelHarvestClaim(claim.claimId);
@@ -117,29 +138,7 @@ FarmPlayerHarvestResult ExecutePlayerHarvest(Player& player, uint8 plotId, uint8
         return FarmPlayerHarvestResult::FinalizeRejected;
     }
 
-    for (uint8 i = 0; i < rewardCount; ++i)
-    {
-        ItemPosCountVec destination;
-        if (player.CanStoreNewItem(NULL_BAG, NULL_SLOT, destination, rewards[i].itemEntry, rewards[i].count) != EQUIP_ERR_OK)
-        {
-            TC_LOG_ERROR("entities.player.items", "Tillers harvest reward storage invariant failed for player %u, item %u count %u",
-                player.GetGUID().GetCounter(), rewards[i].itemEntry, rewards[i].count);
-            return FarmPlayerHarvestResult::RewardDeliveryFailed;
-        }
-
-        Item* item = player.StoreNewItem(destination, rewards[i].itemEntry, true,
-            Item::GenerateItemRandomPropertyId(rewards[i].itemEntry));
-        if (!item)
-        {
-            TC_LOG_ERROR("entities.player.items", "Tillers harvest reward creation failed for player %u, item %u count %u",
-                player.GetGUID().GetCounter(), rewards[i].itemEntry, rewards[i].count);
-            return FarmPlayerHarvestResult::RewardDeliveryFailed;
-        }
-        player.SendNewItem(item, rewards[i].count, true, false);
-    }
-
     CharacterDatabaseTransaction transaction = CharacterDatabase.BeginTransaction();
-    player.SaveInventoryAndGoldToDB(transaction);
     uint64 savedRevision = 0;
     if (session->AppendCurrentStateToTransaction(transaction, savedRevision) != FarmTransactionSaveResult::Appended)
     {
@@ -147,6 +146,28 @@ FarmPlayerHarvestResult ExecutePlayerHarvest(Player& player, uint8 plotId, uint8
         return FarmPlayerHarvestResult::PersistenceRejected;
     }
 
+    for (std::unique_ptr<Item>& rewardItem : rewardItems)
+    {
+        ItemPosCountVec destination;
+        InventoryResult storeResult = player.CanStoreItem(NULL_BAG, NULL_SLOT, destination, rewardItem.get(), false);
+        if (storeResult != EQUIP_ERR_OK)
+        {
+            TC_LOG_ERROR("entities.player.items", "Tillers harvest reward storage invariant failed for player %u, item %u count %u, error %u",
+                player.GetGUID().GetCounter(), rewardItem->GetEntry(), rewardItem->GetCount(), storeResult);
+            return FarmPlayerHarvestResult::RewardDeliveryFailed;
+        }
+
+        uint32 storedCount = rewardItem->GetCount();
+        Item* storedItem = player.StoreItem(destination, rewardItem.release(), true);
+        if (!storedItem)
+        {
+            TC_LOG_ERROR("entities.player.items", "Tillers harvest reward insertion failed for player %u", player.GetGUID().GetCounter());
+            return FarmPlayerHarvestResult::RewardDeliveryFailed;
+        }
+        player.SendNewItem(storedItem, storedCount, true, false);
+    }
+
+    player.SaveInventoryAndGoldToDB(transaction);
     CharacterDatabase.CommitTransaction(transaction);
     session->CompleteTransactionSave(true, savedRevision);
     return FarmPlayerHarvestResult::Applied;
