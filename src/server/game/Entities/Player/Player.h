@@ -1855,6 +1855,7 @@ class TC_GAME_API Player : public Unit, public GridObject<Player>
     bool LoadFromDB(ObjectGuid guid, CharacterDatabaseQueryHolder const& holder);
     bool isBeingLoaded() const;
 
+    Tillers::TillersFarmSession* GetTillersFarmSession() { return m_tillersFarmSession.get(); }
     Tillers::TillersFarmSession const* GetTillersFarmSession() const { return m_tillersFarmSession.get(); }
 
     void Initialize(ObjectGuid::LowType guid);

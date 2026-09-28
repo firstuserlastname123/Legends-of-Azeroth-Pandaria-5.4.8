@@ -123,6 +123,7 @@ class TillersFarmPersistence
 {
 public:
     static PlayerFarmData Load(uint32 guidLow);
+    static bool AppendSave(CharacterDatabaseTransaction const& transaction, uint32 guidLow, PlayerFarmData const& data);
     static FarmWriteResult Save(uint32 guidLow, PlayerFarmData const& data);
     static FarmWriteResult Reset(uint32 guidLow);
 };
