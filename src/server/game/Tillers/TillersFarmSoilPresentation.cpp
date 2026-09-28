@@ -16,6 +16,34 @@ namespace
 constexpr uint32 FarmMap = 870;
 constexpr uint32 FarmZone = 1023;
 constexpr uint32 SoilEntry = 186314;
+
+bool HasCompleteSoilPresentation(Player const& player, TillersFarmSession const& session)
+{
+    uint8 plotsUnlocked = session.GetFarmState().plotsUnlocked;
+    if (session.GetSoilBindings().size() != plotsUnlocked)
+        return false;
+
+    std::vector<bool> resolvedPlots(plotsUnlocked, false);
+    for (auto const& binding : session.GetSoilBindings())
+    {
+        GameObject* soil = player.GetMap()->GetGameObject(binding.first);
+        if (!soil || binding.second >= plotsUnlocked || resolvedPlots[binding.second])
+            return false;
+
+        uint8 resolvedPlot;
+        if (ResolvePlayerSoilObject(player, *soil, resolvedPlot) != FarmSoilResolveResult::Resolved ||
+            resolvedPlot != binding.second)
+            return false;
+
+        resolvedPlots[resolvedPlot] = true;
+    }
+
+    for (bool resolved : resolvedPlots)
+        if (!resolved)
+            return false;
+
+    return true;
+}
 }
 
 FarmSoilResolveResult ResolvePlayerSoilObject(Player const& player, GameObject const& soil, uint8& plotId)
@@ -48,8 +76,11 @@ bool PresentPlayerSoil(Player& player)
     if (!player.IsInWorld() || player.GetMapId() != FarmMap || player.GetZoneId() != FarmZone ||
         !session || !session->IsUsable() || !session->IsProgressionConsistent())
         return false;
-    if (!session->GetSoilBindings().empty())
+    if (HasCompleteSoilPresentation(player, *session))
         return true;
+
+    if (!session->GetSoilBindings().empty())
+        RemovePlayerSoil(player, true);
 
     FarmPlotPositions const* positions = GetFarmPlotPositions();
     if (!positions)
