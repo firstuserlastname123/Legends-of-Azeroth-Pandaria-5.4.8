@@ -27,6 +27,7 @@
 #include <stdexcept>
 #include <vector>
 #include <algorithm>
+#include <cstring>
 #include <limits>
 #include <cmath>
 
@@ -38,7 +39,7 @@ static inline uint32 floatToRawIntBits(float f)
 {
     static_assert(sizeof(float) == sizeof(uint32), "Size of uint32 and float must be equal for this to work");
     uint32 ret;
-    memcpy(&ret, &f, sizeof(float));
+    std::memcpy(&ret, &f, sizeof(float));
     return ret;
 }
 
@@ -46,7 +47,7 @@ static inline float intBitsToFloat(uint32 i)
 {
     static_assert(sizeof(float) == sizeof(uint32), "Size of uint32 and float must be equal for this to work");
     float ret;
-    memcpy(&ret, &i, sizeof(uint32));
+    std::memcpy(&ret, &i, sizeof(uint32));
     return ret;
 }
 
