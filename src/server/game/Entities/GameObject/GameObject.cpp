@@ -34,6 +34,7 @@
 #include "UpdateFieldFlags.h"
 #include "World.h"
 #include "Transport.h"
+#include "TillersFarmSoilInteraction.h"
 #include "DisableMgr.h"
 #include <G3D/Box.h>
 #include <G3D/CoordinateFrame.h>
@@ -1300,6 +1301,9 @@ void GameObject::Use(Unit* user)
 
     if (Player* playerUser = user->ToPlayer())
     {
+        if (Tillers::TryHandleRegisteredSoilUse(*playerUser, *this))
+            return;
+
         if (sScriptMgr->OnGossipHello(playerUser, this))
             return;
 
