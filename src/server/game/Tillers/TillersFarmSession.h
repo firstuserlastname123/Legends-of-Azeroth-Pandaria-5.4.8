@@ -76,7 +76,9 @@ enum class FarmPlantingResult : uint8
     InvalidMaturity,
     InvalidBurstRoll,
     InvalidProblemRoll,
-    InvalidResetTime
+    InvalidResetTime,
+    PersistenceBusy,
+    PersistenceRejected
 };
 
 struct FarmPlantingPlan
@@ -225,6 +227,9 @@ public:
         std::optional<time_t> maturity);
     FarmPlantingResult PlantCropWithPolicy(uint8 plotId, uint32 seedEntry, uint16 burstRoll,
         uint16 problemRoll, time_t nextReset);
+    FarmPlantingResult PlantCropInTransaction(uint8 plotId, uint32 seedEntry,
+        FarmPlantingPlan const& plan, CharacterDatabaseTransaction const& transaction,
+        uint64& savedRevision);
     bool IsPlotPlantable(uint8 plotId) const;
 
     bool RegisterSoilObject(uint8 plotId, ObjectGuid objectGuid);
