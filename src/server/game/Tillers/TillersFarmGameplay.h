@@ -11,10 +11,13 @@
 #define TILLERS_FARM_GAMEPLAY_H
 
 #include "TillersFarmPlayerIntegration.h"
+#include "TillersFarmPlantingIntegration.h"
 
 namespace Tillers
 {
 FarmPlayerHarvestResult ExecutePlayerHarvestWithServerRolls(Player& player, uint8 plotId);
+FarmPlayerPlantingResult ExecutePlayerPlantingWithServerRolls(Player& player, uint8 plotId,
+    uint32 seedEntry);
 }
 
 #endif

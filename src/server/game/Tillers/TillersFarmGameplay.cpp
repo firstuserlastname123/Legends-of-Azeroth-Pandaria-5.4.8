@@ -9,6 +9,7 @@
 
 #include "TillersFarmGameplay.h"
 #include "Random.h"
+#include "World.h"
 
 namespace Tillers
 {
@@ -19,5 +20,14 @@ FarmPlayerHarvestResult ExecutePlayerHarvestWithServerRolls(Player& player, uint
     uint8 seedReturnCount = seedReturnRoll == 0 ? 0 : urand(1, 3);
 
     return ExecutePlayerHarvest(player, plotId, plumpRoll, seedReturnRoll, seedReturnCount);
+}
+
+FarmPlayerPlantingResult ExecutePlayerPlantingWithServerRolls(Player& player, uint8 plotId,
+    uint32 seedEntry)
+{
+    uint16 const burstRoll = urand(1, 1000);
+    uint16 const problemRoll = urand(1, 1000);
+    time_t const nextReset = sWorld->GetNextDailyQuestsResetTime();
+    return ExecutePlayerPlanting(player, plotId, seedEntry, burstRoll, problemRoll, nextReset);
 }
 }

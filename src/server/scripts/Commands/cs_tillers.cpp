@@ -41,6 +41,39 @@ bool ParsePlotId(char const* args, uint8& plotId)
     return true;
 }
 
+bool ParsePlantArguments(char const* args, uint8& plotId, uint32& seedEntry)
+{
+    std::string_view input(args ? args : "");
+    while (!input.empty() && (input.front() == ' ' || input.front() == '\t'))
+        input.remove_prefix(1);
+    if (input.empty())
+        return false;
+
+    uint32 parsedPlotId = 0;
+    char const* begin = input.data();
+    char const* end = begin + input.size();
+    std::from_chars_result plotResult = std::from_chars(begin, end, parsedPlotId);
+    if (plotResult.ec != std::errc() || plotResult.ptr == begin || parsedPlotId > 15 ||
+        plotResult.ptr == end || (*plotResult.ptr != ' ' && *plotResult.ptr != '\t'))
+        return false;
+
+    begin = plotResult.ptr;
+    while (begin != end && (*begin == ' ' || *begin == '\t'))
+        ++begin;
+    if (begin == end)
+        return false;
+
+    std::from_chars_result seedResult = std::from_chars(begin, end, seedEntry);
+    if (seedResult.ec != std::errc() || seedResult.ptr == begin)
+        return false;
+    for (char const* current = seedResult.ptr; current != end; ++current)
+        if (*current != ' ' && *current != '\t')
+            return false;
+
+    plotId = static_cast<uint8>(parsedPlotId);
+    return true;
+}
+
 char const* GetHarvestResultMessage(Tillers::FarmPlayerHarvestResult result)
 {
     switch (result)
@@ -67,6 +100,32 @@ char const* GetHarvestResultMessage(Tillers::FarmPlayerHarvestResult result)
 
     return "Harvest failed with an unknown result";
 }
+
+char const* GetPlantingResultMessage(Tillers::FarmPlayerPlantingResult result)
+{
+    switch (result)
+    {
+        case Tillers::FarmPlayerPlantingResult::Applied: return "Seed planted and transaction committed";
+        case Tillers::FarmPlayerPlantingResult::PlayerNotInWorld: return "Farm player is not in the world";
+        case Tillers::FarmPlayerPlantingResult::NoFarmSession: return "Farm session unavailable";
+        case Tillers::FarmPlayerPlantingResult::OwnerMismatch: return "Farm session owner does not match the player";
+        case Tillers::FarmPlayerPlantingResult::PersistenceBusy: return "Previous farm save still pending";
+        case Tillers::FarmPlayerPlantingResult::MissingPlot: return "Plot record does not exist";
+        case Tillers::FarmPlayerPlantingResult::LockedPlot: return "Plot is not unlocked";
+        case Tillers::FarmPlayerPlantingResult::InconsistentFarm: return "Farm progression state is inconsistent";
+        case Tillers::FarmPlayerPlantingResult::Unusable: return "Farm session is invalid";
+        case Tillers::FarmPlayerPlantingResult::WrongState: return "Plot soil is not prepared";
+        case Tillers::FarmPlayerPlantingResult::HarvestClaimPending: return "Plot has a conflicting harvest claim";
+        case Tillers::FarmPlayerPlantingResult::InvalidSeed: return "Seed entry is unsupported or has no item template";
+        case Tillers::FarmPlayerPlantingResult::MissingSeedItem: return "Player has no available seed outside the bank or seed is reserved in trade";
+        case Tillers::FarmPlayerPlantingResult::InvalidBurstRoll: return "Generated burst roll is invalid";
+        case Tillers::FarmPlayerPlantingResult::InvalidProblemRoll: return "Generated crop-problem roll is invalid";
+        case Tillers::FarmPlayerPlantingResult::InvalidResetTime: return "Next daily reset time is invalid";
+        case Tillers::FarmPlayerPlantingResult::PersistenceRejected: return "Farm persistence preparation was rejected";
+    }
+
+    return "Planting failed with an unknown result";
+}
 }
 
 class tillers_commandscript : public CommandScript
@@ -79,12 +138,46 @@ public:
         static std::vector<ChatCommand> tillersCommandTable =
         {
             { "harvest", &HandleHarvestCommand, rbac::RBAC_PERM_COMMAND_GM, Trinity::ChatCommands::Console::No },
+            { "plant", &HandlePlantCommand, rbac::RBAC_PERM_COMMAND_GM, Trinity::ChatCommands::Console::No },
         };
         static std::vector<ChatCommand> commandTable =
         {
             { "tillers", tillersCommandTable, rbac::RBAC_PERM_COMMAND_GM, Trinity::ChatCommands::Console::No },
         };
         return commandTable;
+    }
+
+    static bool HandlePlantCommand(ChatHandler* handler, char const* args)
+    {
+        WorldSession* session = handler->GetSession();
+        if (!session || session->GetSecurity() < SEC_GAMEMASTER)
+        {
+            handler->SendSysMessage("This command requires an in-game GM session.");
+            handler->SetSentErrorMessage(true);
+            return false;
+        }
+
+        Player* player = session->GetPlayer();
+        if (!player)
+        {
+            handler->SendSysMessage("Farm player unavailable.");
+            handler->SetSentErrorMessage(true);
+            return false;
+        }
+
+        uint8 plotId = 0;
+        uint32 seedEntry = 0;
+        if (!ParsePlantArguments(args, plotId, seedEntry))
+        {
+            handler->SendSysMessage("Usage: .tillers plant <plotId> <seedEntry> (plotId must be an integer from 0 through 15)");
+            handler->SetSentErrorMessage(true);
+            return false;
+        }
+
+        Tillers::FarmPlayerPlantingResult const result =
+            Tillers::ExecutePlayerPlantingWithServerRolls(*player, plotId, seedEntry);
+        handler->SendSysMessage(GetPlantingResultMessage(result));
+        return true;
     }
 
     static bool HandleHarvestCommand(ChatHandler* handler, char const* args)
