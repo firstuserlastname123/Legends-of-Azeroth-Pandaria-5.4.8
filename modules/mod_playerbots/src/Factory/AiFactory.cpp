@@ -32,6 +32,64 @@
 #include "WarriorAIObjectContext.h"
 #include "WarlockAiObjectContext.h"
 
+namespace
+{
+constexpr BotRoles ClassifyPlayerRole(uint8 playerClass, Specializations spec)
+{
+    switch (playerClass)
+    {
+        case CLASS_PRIEST:
+            return spec == SPEC_PRIEST_SHADOW ? BOT_ROLE_DPS : BOT_ROLE_HEALER;
+        case CLASS_SHAMAN:
+            return spec == SPEC_SHAMAN_RESTORATION ? BOT_ROLE_HEALER : BOT_ROLE_DPS;
+        case CLASS_WARRIOR:
+            return spec == SPEC_WARRIOR_PROTECTION ? BOT_ROLE_TANK : BOT_ROLE_DPS;
+        case CLASS_PALADIN:
+            if (spec == SPEC_PALADIN_HOLY)
+                return BOT_ROLE_HEALER;
+            if (spec == SPEC_PALADIN_PROTECTION)
+                return BOT_ROLE_TANK;
+            if (spec == 2)
+                return BOT_ROLE_DPS;
+            return BOT_ROLE_NONE;
+        case CLASS_DRUID:
+            if (spec == SPEC_DRUID_FERAL || spec == SPEC_DRUID_BALANCE)
+                return BOT_ROLE_DPS;
+            if (spec == SPEC_DRUID_GUARDIAN)
+                return BOT_ROLE_TANK;
+            if (spec == SPEC_DRUID_RESTORATION)
+                return BOT_ROLE_HEALER;
+            return BOT_ROLE_NONE;
+        case CLASS_MONK:
+            if (spec == SPEC_MONK_BREWMASTER)
+                return BOT_ROLE_TANK;
+            if (spec == SPEC_MONK_MISTWEAVER)
+                return BOT_ROLE_HEALER;
+            if (spec == SPEC_MONK_WINDWALKER)
+                return BOT_ROLE_DPS;
+            return BOT_ROLE_NONE;
+        default:
+            return BOT_ROLE_DPS;
+    }
+}
+
+// Compile-time coverage keeps one classification baseline for every MoP class,
+// with all three Shaman specializations covered by the regression check.
+static_assert(ClassifyPlayerRole(CLASS_WARRIOR, SPEC_WARRIOR_PROTECTION) == BOT_ROLE_TANK);
+static_assert(ClassifyPlayerRole(CLASS_PALADIN, SPEC_PALADIN_HOLY) == BOT_ROLE_HEALER);
+static_assert(ClassifyPlayerRole(CLASS_HUNTER, SPEC_HUNTER_SURVIVAL) == BOT_ROLE_DPS);
+static_assert(ClassifyPlayerRole(CLASS_ROGUE, SPEC_ROGUE_SUBTLETY) == BOT_ROLE_DPS);
+static_assert(ClassifyPlayerRole(CLASS_PRIEST, SPEC_PRIEST_SHADOW) == BOT_ROLE_DPS);
+static_assert(ClassifyPlayerRole(CLASS_DEATH_KNIGHT, SPEC_DEATH_KNIGHT_FROST) == BOT_ROLE_DPS);
+static_assert(ClassifyPlayerRole(CLASS_SHAMAN, SPEC_SHAMAN_ELEMENTAL) == BOT_ROLE_DPS);
+static_assert(ClassifyPlayerRole(CLASS_SHAMAN, SPEC_SHAMAN_ENHANCEMENT) == BOT_ROLE_DPS);
+static_assert(ClassifyPlayerRole(CLASS_SHAMAN, SPEC_SHAMAN_RESTORATION) == BOT_ROLE_HEALER);
+static_assert(ClassifyPlayerRole(CLASS_MAGE, SPEC_MAGE_FROST) == BOT_ROLE_DPS);
+static_assert(ClassifyPlayerRole(CLASS_WARLOCK, SPEC_WARLOCK_AFFLICTION) == BOT_ROLE_DPS);
+static_assert(ClassifyPlayerRole(CLASS_MONK, SPEC_MONK_BREWMASTER) == BOT_ROLE_TANK);
+static_assert(ClassifyPlayerRole(CLASS_DRUID, SPEC_DRUID_RESTORATION) == BOT_ROLE_HEALER);
+}
+
 AiObjectContext* AiFactory::createAiObjectContext(Player* player, PlayerbotAI* botAI)
 {
     switch (player->GetClass())
@@ -70,59 +128,7 @@ Specializations AiFactory::GetPlayerSpecTab(Player* bot)
 
 BotRoles AiFactory::GetPlayerRoles(Player* player)
 {
-    BotRoles role = BOT_ROLE_NONE;
-    const Specializations spec = player->GetSpecialization();
-
-    switch (player->GetClass())
-    {
-        case CLASS_PRIEST:
-            if (spec == Specializations::SPEC_PRIEST_SHADOW)
-                role = BOT_ROLE_DPS;
-            else
-                role = BOT_ROLE_HEALER;
-            break;
-        case CLASS_SHAMAN:
-            if (spec == Specializations::SPEC_DRUID_RESTORATION)
-                role = BOT_ROLE_HEALER;
-            else
-                role = BOT_ROLE_DPS;
-            break;
-        case CLASS_WARRIOR:
-            if (spec == Specializations::SPEC_WARRIOR_PROTECTION)
-                role = BOT_ROLE_TANK;
-            else
-                role = BOT_ROLE_DPS;
-            break;
-        case CLASS_PALADIN:
-            if (spec == Specializations::SPEC_PALADIN_HOLY)
-                role = BOT_ROLE_HEALER;
-            else if (spec == Specializations::SPEC_PALADIN_PROTECTION)
-                role = BOT_ROLE_TANK;
-            else if (spec == 2)
-                role = BOT_ROLE_DPS;
-            break;
-        case CLASS_DRUID:
-            if (spec == Specializations::SPEC_DRUID_FERAL || spec == Specializations::SPEC_DRUID_BALANCE)
-                role = BOT_ROLE_DPS;
-            else if (spec == Specializations::SPEC_DRUID_GUARDIAN)
-                role = BOT_ROLE_TANK;
-            else if (spec == Specializations::SPEC_DRUID_RESTORATION)
-                role = BOT_ROLE_HEALER;
-            break;
-        case CLASS_MONK:
-            if (spec == Specializations::SPEC_MONK_BREWMASTER)
-                role = BOT_ROLE_TANK;
-            else if (spec == Specializations::SPEC_MONK_MISTWEAVER)
-                role = BOT_ROLE_HEALER;
-            else if (spec == Specializations::SPEC_MONK_WINDWALKER)
-                role = BOT_ROLE_DPS;
-            break;
-        default:
-            role = BOT_ROLE_DPS;
-            break;
-    }
-
-    return role;
+    return ClassifyPlayerRole(player->GetClass(), player->GetSpecialization());
 }
 
 std::string AiFactory::GetPlayerSpecName(Player* player)
