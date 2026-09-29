@@ -49,9 +49,15 @@ constexpr BotRoles ClassifyPlayerRole(uint8 playerClass, Specializations spec)
                 return BOT_ROLE_HEALER;
             if (spec == SPEC_PALADIN_PROTECTION)
                 return BOT_ROLE_TANK;
-            if (spec == 2)
+            if (spec == SPEC_PALADIN_RETRIBUTION)
                 return BOT_ROLE_DPS;
             return BOT_ROLE_NONE;
+        case CLASS_DEATH_KNIGHT:
+            if (spec == SPEC_DEATH_KNIGHT_BLOOD)
+                return BOT_ROLE_TANK;
+            if (spec == SPEC_DEATH_KNIGHT_FROST || spec == SPEC_DEATH_KNIGHT_UNHOLY)
+                return BOT_ROLE_DPS;
+            return BOT_ROLE_DPS;
         case CLASS_DRUID:
             if (spec == SPEC_DRUID_FERAL || spec == SPEC_DRUID_BALANCE)
                 return BOT_ROLE_DPS;
@@ -74,13 +80,18 @@ constexpr BotRoles ClassifyPlayerRole(uint8 playerClass, Specializations spec)
 }
 
 // Compile-time coverage keeps one classification baseline for every MoP class,
-// with all three Shaman specializations covered by the regression check.
+// with all Paladin, Death Knight, and Shaman specializations covered by the
+// regression check.
 static_assert(ClassifyPlayerRole(CLASS_WARRIOR, SPEC_WARRIOR_PROTECTION) == BOT_ROLE_TANK);
 static_assert(ClassifyPlayerRole(CLASS_PALADIN, SPEC_PALADIN_HOLY) == BOT_ROLE_HEALER);
+static_assert(ClassifyPlayerRole(CLASS_PALADIN, SPEC_PALADIN_PROTECTION) == BOT_ROLE_TANK);
+static_assert(ClassifyPlayerRole(CLASS_PALADIN, SPEC_PALADIN_RETRIBUTION) == BOT_ROLE_DPS);
 static_assert(ClassifyPlayerRole(CLASS_HUNTER, SPEC_HUNTER_SURVIVAL) == BOT_ROLE_DPS);
 static_assert(ClassifyPlayerRole(CLASS_ROGUE, SPEC_ROGUE_SUBTLETY) == BOT_ROLE_DPS);
 static_assert(ClassifyPlayerRole(CLASS_PRIEST, SPEC_PRIEST_SHADOW) == BOT_ROLE_DPS);
+static_assert(ClassifyPlayerRole(CLASS_DEATH_KNIGHT, SPEC_DEATH_KNIGHT_BLOOD) == BOT_ROLE_TANK);
 static_assert(ClassifyPlayerRole(CLASS_DEATH_KNIGHT, SPEC_DEATH_KNIGHT_FROST) == BOT_ROLE_DPS);
+static_assert(ClassifyPlayerRole(CLASS_DEATH_KNIGHT, SPEC_DEATH_KNIGHT_UNHOLY) == BOT_ROLE_DPS);
 static_assert(ClassifyPlayerRole(CLASS_SHAMAN, SPEC_SHAMAN_ELEMENTAL) == BOT_ROLE_DPS);
 static_assert(ClassifyPlayerRole(CLASS_SHAMAN, SPEC_SHAMAN_ENHANCEMENT) == BOT_ROLE_DPS);
 static_assert(ClassifyPlayerRole(CLASS_SHAMAN, SPEC_SHAMAN_RESTORATION) == BOT_ROLE_HEALER);
