@@ -21,7 +21,9 @@
 #include "IVMapManager.h"
 #include "Define.h"
 #include <mutex>
+#include <string>
 #include <unordered_map>
+#include <vector>
 
 //===========================================================
 
