@@ -20,6 +20,8 @@
 
 #include <algorithm>
 #include <chrono>
+#include <functional>
+#include <limits>
 #include <vector>
 #include <queue>
 #include <memory>
