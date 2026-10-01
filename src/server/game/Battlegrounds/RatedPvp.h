@@ -19,8 +19,16 @@
 #define RATED_PVP_H
 
 #include "Common.h"
+#include "DatabaseEnvFwd.h"
+#include "Errors.h"
+#include "ObjectGuid.h"
+#include <iosfwd>
+#include <memory>
 
 enum ArenaType : uint32;
+struct AchievementEntry;
+struct CharTitlesEntry;
+struct ItemTemplate;
 
 struct RatedPvpInfo
 {
