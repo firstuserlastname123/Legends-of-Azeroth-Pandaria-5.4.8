@@ -22,8 +22,10 @@
 #include <string>
 
 #include "Common.h"
+#include "DatabaseEnvFwd.h"
 #include "DBCEnums.h"
 #include "DBCStores.h"
+#include "ObjectGuid.h"
 
 class Unit;
 class Player;
