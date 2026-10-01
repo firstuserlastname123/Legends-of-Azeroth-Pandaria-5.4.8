@@ -20,6 +20,8 @@
 
 #include "Common.h"
 #include "AsioHacksFwd.h"
+#include <memory>
+#include <string>
 
 enum RealmFlags
 {
