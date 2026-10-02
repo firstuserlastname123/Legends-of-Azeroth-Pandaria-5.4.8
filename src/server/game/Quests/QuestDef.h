@@ -28,6 +28,7 @@
 #include <vector>
 #include <bitset>
 
+class Field;
 class Player;
 
 class ObjectMgr;
