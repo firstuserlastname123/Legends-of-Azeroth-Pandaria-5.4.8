@@ -18,8 +18,12 @@
 #ifndef TRINITYCORE_PET_H
 #define TRINITYCORE_PET_H
 
+#include "DatabaseEnvFwd.h"
+#include "Errors.h"
 #include "PetDefines.h"
 #include "TemporarySummon.h"
+#include <unordered_map>
+#include <vector>
 
 #define PET_FOCUS_REGEN_INTERVAL 4 * IN_MILLISECONDS
 #define HAPPINESS_LEVEL_SIZE        333000
@@ -32,6 +36,9 @@ struct PetSpell
 
 typedef std::unordered_map<uint32, PetSpell> PetSpellMap;
 typedef std::vector<uint32> AutoSpellList;
+
+struct DeclinedName;
+struct ItemTemplate;
 
 class Player;
 
