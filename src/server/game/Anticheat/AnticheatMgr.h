@@ -19,6 +19,8 @@
 #define SC_ACMGR_H
 
 #include "Common.h"
+#include "MovementInfo.h"
+#include "ObjectGuid.h"
 #include "SharedDefines.h"
 
 class Player;
