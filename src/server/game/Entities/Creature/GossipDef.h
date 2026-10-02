@@ -20,8 +20,12 @@
 
 #include "Common.h"
 #include "NPCHandler.h"
+#include "ObjectGuid.h"
 
+class Quest;
 class WorldSession;
+
+enum class QuestGiverStatus : uint32;
 
 #define GOSSIP_MAX_MENU_ITEMS 64                            // client supported items unknown, but provided number must be enough
 #define DEFAULT_GOSSIP_MESSAGE              0xffffff
