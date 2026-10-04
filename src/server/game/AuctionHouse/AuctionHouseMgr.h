@@ -21,6 +21,7 @@
 #include "Common.h"
 #include "DBCStructure.h"
 #include "DatabaseEnv.h"
+#include "ObjectGuid.h"
 #include "ProducerConsumerQueue.h"
 #include <unordered_map>
 #include <unordered_set>
@@ -29,6 +30,15 @@ class Item;
 class Player;
 class WorldPacket;
 struct AuctionHouseEntry;
+
+namespace WorldPackets
+{
+    namespace AuctionHouse
+    {
+        struct AuctionItem;
+        class AuctionReplicateResponse;
+    }
+}
 
 #define MIN_AUCTION_TIME    (12*HOUR)
 #define MAX_AUCTION_ITEMS    160
