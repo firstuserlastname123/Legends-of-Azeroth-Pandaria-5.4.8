@@ -26,6 +26,7 @@
 #include "ScriptMgr.h"
 #include "AccountMgr.h"
 #include "AuctionHouseMgr.h"
+#include "AuctionHousePackets.h"
 #include "AuctionHouseBot.h"
 #include "Item.h"
 #include "Language.h"
