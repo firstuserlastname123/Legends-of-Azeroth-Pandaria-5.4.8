@@ -23,7 +23,9 @@
 #include "Errors.h"
 #include <list>
 #include <unordered_map>
+#include <unordered_set>
 
+class Creature;
 class Player;
 class Unit;
 class WorldObject;
