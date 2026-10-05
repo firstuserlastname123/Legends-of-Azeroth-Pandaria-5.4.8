@@ -18,6 +18,16 @@
 #ifndef CHARACTER_BOOST_H
 #define CHARACTER_BOOST_H
 
+#include "DatabaseEnvFwd.h"
+#include "Define.h"
+#include "ObjectGuid.h"
+
+#include <map>
+#include <string>
+#include <vector>
+
+class WorldSession;
+
 enum CharBoostMisc
 {
     // Items
