@@ -21,6 +21,13 @@
 #include "Common.h"
 #include "BattlePetAbilityEffect.h"
 #include "BattlePetAura.h"
+#include "ObjectGuid.h"
+
+#include <array>
+#include <list>
+#include <memory>
+#include <string>
+#include <vector>
 
 class Player;
 
